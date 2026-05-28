@@ -1,139 +1,149 @@
 /**
- * VALIDADOR DE RESPOSTAS - GEO TRI
+ * GERENCIAMENTO DE ESTADO DO JOGO
  */
 
-class AnswerValidator {
+class GameState {
     constructor(puzzle) {
         this.puzzle = puzzle;
-        this.buildAliasMap();
+        this.score = 900;
+        this.guessesLeft = 9;
+        this.filled = new Map(); // key: "row,col", value: {municipality, rarity}
+        this.history = [];
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.isGameWon = false;
     }
 
     /**
-     * Constrói um mapa de aliases para municípios
+     * Adiciona um palpite ao histórico
      */
-    buildAliasMap() {
-        this.aliases = {
-            // Adicionar aliases comuns aqui se necessário
-            // Exemplo: 'porto alegre': ['p.a.', 'poa']
+    addGuess(row, col, municipality, isCorrect) {
+        const guess = {
+            row,
+            col,
+            municipality,
+            isCorrect,
+            timestamp: Date.now()
         };
+
+        this.history.push(guess);
+
+        if (isCorrect) {
+            this.filled.set(`${row},${col}`, {
+                municipality: municipality,
+                rarity: this.puzzle.rarities[row][col] || 50
+            });
+            this.updateScore(municipality, row, col);
+            this.checkGameWon();
+        } else {
+            this.guessesLeft--;
+            if (this.guessesLeft <= 0) {
+                this.isGameOver = true;
+            }
+        }
     }
 
     /**
-     * Valida se um nome de município está correto para uma célula
-     * NOVO: Aceita QUALQUER município que esteja na lista de válidos
+     * Atualiza a pontuação
      */
-    validateAnswer(row, col, userInput) {
-        if (isEmpty(userInput)) {
-            return {
-                isValid: false,
-                message: 'Digite o nome de um município'
-            };
+    updateScore(municipality, row, col) {
+        const rarity = this.puzzle.rarities[row][col] || 50;
+        const penalty = (rarity / 100) * 900;
+        this.score = Math.max(0, this.score - penalty);
+    }
+
+    /**
+     * Verifica se o jogo foi vencido
+     */
+    checkGameWon() {
+        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
+        if (this.filled.size === totalCells) {
+            this.isGameWon = true;
         }
+    }
 
-        // Obter lista de municípios válidos para esta célula
-        const validMunicipalities = this.puzzle.validMunicipalities[row][col];
-        
-        if (!validMunicipalities || validMunicipalities.length === 0) {
-            return {
-                isValid: false,
-                message: 'Nenhum município válido para esta combinação'
-            };
-        }
+    /**
+     * Verifica se uma célula já foi preenchida
+     */
+    isCellFilled(row, col) {
+        return this.filled.has(`${row},${col}`);
+    }
 
-        // Normalizar entrada do usuário
-        const normalized = normalizeMunicipalityName(userInput);
+    /**
+     * Obtém o município preenchido em uma célula
+     */
+    getFilledMunicipality(row, col) {
+        const filled = this.filled.get(`${row},${col}`);
+        return filled ? filled.municipality : null;
+    }
 
-        // Verificar se está na lista de válidos
-        for (let validMun of validMunicipalities) {
-            const validNormalized = normalizeMunicipalityName(validMun);
-            
-            if (normalized === validNormalized) {
-                return {
-                    isValid: true,
-                    municipality: validMun,
-                    message: `✓ Correto! ${validMun}`
-                };
-            }
-
-            // Verificar aliases
-            const aliases = this.aliases[validNormalized] || [];
-            if (aliases.includes(normalized)) {
-                return {
-                    isValid: true,
-                    municipality: validMun,
-                    message: `✓ Correto! ${validMun}`
-                };
-            }
-        }
-
-        // Se não encontrou, retornar mensagem de erro
+    /**
+     * Retorna o estado do jogo como JSON
+     */
+    toJSON() {
         return {
-            isValid: false,
-            message: `✗ Esse município não satisfaz as pistas desta célula`
+            score: this.score,
+            guessesLeft: this.guessesLeft,
+            filled: Array.from(this.filled.entries()),
+            history: this.history,
+            isGameOver: this.isGameOver,
+            isGameWon: this.isGameWon,
+            startTime: this.startTime
         };
     }
 
     /**
-     * Encontra sugestões de municípios baseado na entrada do usuário
+     * Carrega o estado do jogo a partir de JSON
      */
-    getSuggestions(row, col, userInput) {
-        if (isEmpty(userInput)) {
-            return [];
-        }
-
-        const validMunicipalities = this.puzzle.validMunicipalities[row][col];
-        if (!validMunicipalities || validMunicipalities.length === 0) {
-            return [];
-        }
-
-        const normalized = normalizeMunicipalityName(userInput);
-        const suggestions = [];
-
-        // Encontrar municípios que começam com o texto digitado
-        for (let mun of validMunicipalities) {
-            const munNormalized = normalizeMunicipalityName(mun);
-            if (munNormalized.startsWith(normalized)) {
-                suggestions.push(mun);
-            }
-        }
-
-        // Se não encontrou por começo, procurar por substring
-        if (suggestions.length === 0) {
-            for (let mun of validMunicipalities) {
-                const munNormalized = normalizeMunicipalityName(mun);
-                if (munNormalized.includes(normalized)) {
-                    suggestions.push(mun);
-                }
-            }
-        }
-
-        return suggestions.slice(0, 5); // Retornar máximo 5 sugestões
+    fromJSON(data) {
+        this.score = data.score || 900;
+        this.guessesLeft = data.guessesLeft || 9;
+        this.filled = new Map(data.filled || []);
+        this.history = data.history || [];
+        this.isGameOver = data.isGameOver || false;
+        this.isGameWon = data.isGameWon || false;
+        this.startTime = data.startTime || Date.now();
     }
 
     /**
-     * Retorna todos os municípios válidos para uma célula
+     * Reseta o estado do jogo
      */
-    getValidMunicipalities(row, col) {
-        return this.puzzle.validMunicipalities[row][col] || [];
+    reset() {
+        this.score = 900;
+        this.guessesLeft = 9;
+        this.filled.clear();
+        this.history = [];
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.isGameWon = false;
     }
 
     /**
-     * Verifica se um município é válido para uma célula específica
+     * Retorna o tempo decorrido em segundos
      */
-    isValidForCell(row, col, municipalityName) {
-        const validMunicipalities = this.puzzle.validMunicipalities[row][col];
-        if (!validMunicipalities) {
-            return false;
-        }
+    getElapsedTime() {
+        return Math.floor((Date.now() - this.startTime) / 1000);
+    }
 
-        const normalized = normalizeMunicipalityName(municipalityName);
-        
-        for (let validMun of validMunicipalities) {
-            if (normalizeMunicipalityName(validMun) === normalized) {
-                return true;
-            }
-        }
+    /**
+     * Retorna o número de acertos
+     */
+    getCorrectGuesses() {
+        return this.filled.size;
+    }
 
-        return false;
+    /**
+     * Retorna o número de tentativas usadas
+     */
+    getUsedGuesses() {
+        return 9 - this.guessesLeft;
+    }
+
+    /**
+     * Retorna o percentual de células preenchidas
+     */
+    getCompletionPercentage() {
+        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
+        return Math.round((this.filled.size / totalCells) * 100);
     }
 }

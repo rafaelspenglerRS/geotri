@@ -1,126 +1,81 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geo TRI - Puzzle de Cidades Gaúchas</title>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/grid.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/animations.css">
+    <title>Teste Geo TRI</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .pass { background: #90EE90; }
+        .fail { background: #FFB6C6; }
+    </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">🗺️ Geo TRI</h1>
-                <div class="header-info">
-                    <div class="info-item">
-                        <span class="label">Pontuação</span>
-                        <span class="value" id="score">900</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Tentativas</span>
-                        <span class="value" id="guesses">9/9</span>
-                    </div>
-                </div>
-            </div>
-        </header>
+    <h1>Teste do Geo TRI</h1>
+    <div id="results"></div>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Board Info -->
-            <div class="board-info">
-                <span id="board-number">Puzzle #1</span>
-                <span id="board-date">Hoje</span>
-            </div>
-
-            <!-- Game Container -->
-            <div class="game-container">
-                <!-- Pistas Horizontais (Top) -->
-                <div class="clues-top">
-                    <div class="clue-spacer"></div>
-                    <div class="clue" id="clue-h-0"></div>
-                    <div class="clue" id="clue-h-1"></div>
-                    <div class="clue" id="clue-h-2"></div>
-                </div>
-
-                <!-- Grid com Pistas Verticais -->
-                <div class="grid-wrapper">
-                    <!-- Pistas Verticais (Left) -->
-                    <div class="clues-left">
-                        <div class="clue" id="clue-v-0"></div>
-                        <div class="clue" id="clue-v-1"></div>
-                        <div class="clue" id="clue-v-2"></div>
-                    </div>
-
-                    <!-- Grid 3x3 -->
-                    <div class="grid" id="grid">
-                        <!-- Células serão geradas por JavaScript -->
-                    </div>
-                </div>
-            </div>
-
-            <!-- Action Buttons -->
-            <div class="action-buttons">
-                <button id="share-btn" class="btn btn-secondary">
-                    <span>📤 Compartilhar</span>
-                </button>
-                <button id="finish-btn" class="btn btn-primary">
-                    <span>🏁 Revelar Solução</span>
-                </button>
-            </div>
-
-            <!-- Game Status -->
-            <div id="game-status" class="game-status hidden"></div>
-        </main>
-
-        <!-- Modal de Busca -->
-        <div id="search-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Encontre um município</h2>
-                    <button class="modal-close" id="modal-close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="clues-display">
-                        <div class="clue-item">
-                            <span class="clue-label">Horizontal:</span>
-                            <span class="clue-text" id="modal-clue-h"></span>
-                        </div>
-                        <div class="clue-item">
-                            <span class="clue-label">Vertical:</span>
-                            <span class="clue-text" id="modal-clue-v"></span>
-                        </div>
-                    </div>
-                    <input 
-                        type="text" 
-                        id="search-input" 
-                        class="search-input" 
-                        placeholder="Digite o nome do município..."
-                        autocomplete="off"
-                    >
-                    <div class="suggestions" id="suggestions"></div>
-                </div>
-                <div class="modal-footer">
-                    <button id="modal-cancel" class="btn btn-secondary">Cancelar</button>
-                    <button id="modal-guess" class="btn btn-primary" disabled>Confirmar</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Overlay -->
-        <div id="modal-overlay" class="modal-overlay hidden"></div>
-    </div>
-
-    <!-- Scripts -->
     <script src="js/utils.js"></script>
     <script src="js/game-state.js"></script>
     <script src="js/puzzle-generator.js"></script>
     <script src="js/renderer.js"></script>
     <script src="js/validator.js"></script>
     <script src="js/persistence.js"></script>
-    <script src="js/main.js"></script>
+
+    <script>
+        const results = document.getElementById('results');
+
+        function addTest(name, passed, details = '') {
+            const div = document.createElement('div');
+            div.className = `test ${passed ? 'pass' : 'fail'}`;
+            div.innerHTML = `<strong>${name}</strong>: ${passed ? '✓ PASS' : '✗ FAIL'} ${details}`;
+            results.appendChild(div);
+        }
+
+        // Teste 1: Verificar se as classes foram carregadas
+        addTest('PuzzleGenerator', typeof PuzzleGenerator === 'function');
+        addTest('GameState', typeof GameState === 'function');
+        addTest('GameRenderer', typeof GameRenderer === 'function');
+        addTest('AnswerValidator', typeof AnswerValidator === 'function');
+
+        // Teste 2: Carregar dados
+        fetch('data/municipalities.json')
+            .then(r => r.json())
+            .then(data => {
+                addTest('Dados carregados', data.municipalities && data.municipalities.length > 0, `${data.municipalities.length} municípios`);
+
+                // Teste 3: Criar gerador
+                try {
+                    const gen = new PuzzleGenerator(data.municipalities);
+                    addTest('Gerador criado', true);
+
+                    // Teste 4: Gerar puzzle
+                    const puzzle = gen.generateDailyPuzzle();
+                    addTest('Puzzle gerado', puzzle && puzzle.id, `ID: ${puzzle.id}`);
+
+                    // Teste 5: Verificar validMunicipalities
+                    const hasValidMun = puzzle && puzzle.validMunicipalities && puzzle.validMunicipalities[0] && puzzle.validMunicipalities[0][0];
+                    addTest('validMunicipalities', hasValidMun, hasValidMun ? `${puzzle.validMunicipalities[0][0].length} válidos` : '');
+
+                    // Teste 6: Criar validador
+                    try {
+                        const validator = new AnswerValidator(puzzle);
+                        addTest('Validador criado', true);
+
+                        // Teste 7: Validar resposta
+                        if (hasValidMun && puzzle.validMunicipalities[0][0].length > 0) {
+                            const validMun = puzzle.validMunicipalities[0][0][0];
+                            const result = validator.validateAnswer(0, 0, validMun);
+                            addTest('Validação', result.isValid, `${validMun}: ${result.message}`);
+                        }
+                    } catch (e) {
+                        addTest('Validador', false, e.message);
+                    }
+                } catch (e) {
+                    addTest('Gerador', false, e.message);
+                }
+            })
+            .catch(e => {
+                addTest('Dados', false, e.message);
+            });
+    </script>
 </body>
 </html>

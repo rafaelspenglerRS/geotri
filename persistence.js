@@ -1,169 +1,383 @@
 /**
- * RENDERIZADOR DO JOGO
+ * UTILITÁRIOS GERAIS
  */
 
-class GameRenderer {
-    constructor(puzzle, gameState) {
-        this.puzzle = puzzle;
-        this.gameState = gameState;
+// ===== FUNÇÕES DE FORMATAÇÃO =====
+
+/**
+ * Normaliza um nome de município para comparação
+ */
+function normalizeMunicipalityName(name) {
+    return name
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/\s+/g, ' '); // Remove espaços extras
+}
+
+/**
+ * Formata a data para exibição
+ */
+function formatDate(date) {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('pt-BR', options);
+}
+
+/**
+ * Formata um número com separador de milhares
+ */
+function formatNumber(num) {
+    return num.toLocaleString('pt-BR');
+}
+
+// ===== FUNÇÕES DE DOM =====
+
+/**
+ * Seleciona um elemento do DOM
+ */
+function $(selector) {
+    return document.querySelector(selector);
+}
+
+/**
+ * Seleciona múltiplos elementos do DOM
+ */
+function $$(selector) {
+    return document.querySelectorAll(selector);
+}
+
+/**
+ * Cria um elemento com classes e atributos
+ */
+function createElement(tag, classes = [], attributes = {}) {
+    const el = document.createElement(tag);
+    
+    if (classes.length > 0) {
+        el.classList.add(...(Array.isArray(classes) ? classes : [classes]));
     }
-
-    /**
-     * Renderiza o tabuleiro completo
-     */
-    renderBoard() {
-        this.renderClues();
-        this.renderGrid();
-        this.updateScoreDisplay();
-        this.updateGuessesDisplay();
-        this.updateBoardInfo();
-    }
-
-    /**
-     * Renderiza as pistas
-     */
-    renderClues() {
-        // Pistas Horizontais
-        this.puzzle.cluesHorizontal.forEach((clue, index) => {
-            const el = $(`#clue-h-${index}`);
-            if (el) {
-                el.textContent = clue;
-            }
-        });
-
-        // Pistas Verticais
-        this.puzzle.cluesVertical.forEach((clue, index) => {
-            const el = $(`#clue-v-${index}`);
-            if (el) {
-                el.textContent = clue;
-            }
-        });
-    }
-
-    /**
-     * Renderiza o grid 3x3
-     */
-    renderGrid() {
-        const gridEl = $('#grid');
-        gridEl.innerHTML = ''; // Limpar grid anterior
-
-        for (let row = 0; row < 3; row++) {
-            for (let col = 0; col < 3; col++) {
-                const cell = this.createCell(row, col);
-                gridEl.appendChild(cell);
-            }
-        }
-    }
-
-    /**
-     * Cria uma célula do grid
-     */
-    createCell(row, col) {
-        const cell = createElement('div', ['cell'], {
-            id: `cell-${row}-${col}`
-        });
-
-        const isFilled = this.gameState.isCellFilled(row, col);
-
-        if (isFilled) {
-            const municipality = this.gameState.getFilledMunicipality(row, col);
-            this.fillCell(cell, municipality);
+    
+    Object.entries(attributes).forEach(([key, value]) => {
+        if (key === 'text') {
+            el.textContent = value;
+        } else if (key === 'html') {
+            el.innerHTML = value;
         } else {
-            const emptyIcon = createElement('div', ['cell-empty'], {
-                text: '+'
-            });
-            cell.appendChild(emptyIcon);
-            
-            // Adicionar listener de clique
-            cell.addEventListener('click', () => {
-                this.onCellClick(row, col);
-            });
+            el.setAttribute(key, value);
         }
+    });
+    
+    return el;
+}
 
-        return cell;
+/**
+ * Adiciona classe com animação
+ */
+function addClassWithAnimation(el, className, duration = 300) {
+    el.classList.add(className);
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve();
+        }, duration);
+    });
+}
+
+/**
+ * Remove classe com animação
+ */
+function removeClassWithAnimation(el, className, duration = 300) {
+    el.classList.remove(className);
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve();
+        }, duration);
+    });
+}
+
+// ===== FUNÇÕES DE ARMAZENAMENTO =====
+
+/**
+ * Salva dados no localStorage
+ */
+function saveToStorage(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar no localStorage:', e);
+        return false;
     }
+}
 
-    /**
-     * Preenche uma célula com um município
-     */
-    fillCell(cell, municipality) {
-        cell.classList.add('filled');
-        cell.innerHTML = '';
-
-        // Flag
-        const flag = createElement('div', ['cell-flag'], {
-            text: getMunicipalityEmoji(municipality)
-        });
-        cell.appendChild(flag);
-
-        // Nome do município
-        const name = createElement('div', ['cell-name'], {
-            text: municipality
-        });
-        cell.appendChild(name);
-
-        // Remover listener de clique
-        cell.removeEventListener('click', this.onCellClick);
+/**
+ * Carrega dados do localStorage
+ */
+function loadFromStorage(key, defaultValue = null) {
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : defaultValue;
+    } catch (e) {
+        console.error('Erro ao carregar do localStorage:', e);
+        return defaultValue;
     }
+}
 
-    /**
-     * Atualiza a exibição de pontuação
-     */
-    updateScoreDisplay() {
-        const scoreEl = $('#score');
-        if (scoreEl) {
-            scoreEl.textContent = Math.round(this.gameState.score);
-        }
+/**
+ * Remove dados do localStorage
+ */
+function removeFromStorage(key) {
+    try {
+        localStorage.removeItem(key);
+        return true;
+    } catch (e) {
+        console.error('Erro ao remover do localStorage:', e);
+        return false;
     }
+}
 
-    /**
-     * Atualiza a exibição de tentativas
-     */
-    updateGuessesDisplay() {
-        const guessesEl = $('#guesses');
-        if (guessesEl) {
-            const used = this.gameState.getUsedGuesses();
-            guessesEl.textContent = `${this.gameState.guessesLeft}/${used + this.gameState.guessesLeft}`;
-        }
+// ===== FUNÇÕES DE NOTIFICAÇÃO =====
+
+/**
+ * Mostra uma notificação temporária
+ */
+function showNotification(message, type = 'info', duration = 3000) {
+    const notification = createElement('div', ['notification', type], {
+        text: message
+    });
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('animate-slide-out');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, duration);
+}
+
+/**
+ * Mostra um status no jogo
+ */
+function showGameStatus(message, type = 'info') {
+    const statusEl = $('#game-status');
+    statusEl.textContent = message;
+    statusEl.className = `game-status ${type}`;
+    statusEl.classList.remove('hidden');
+    
+    setTimeout(() => {
+        statusEl.classList.add('hidden');
+    }, 3000);
+}
+
+// ===== FUNÇÕES DE VALIDAÇÃO =====
+
+/**
+ * Valida se uma string está vazia
+ */
+function isEmpty(str) {
+    return !str || str.trim().length === 0;
+}
+
+/**
+ * Valida se um valor é um número
+ */
+function isNumber(value) {
+    return !isNaN(parseFloat(value)) && isFinite(value);
+}
+
+/**
+ * Valida se um valor é um objeto
+ */
+function isObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Valida se um valor é um array
+ */
+function isArray(value) {
+    return Array.isArray(value);
+}
+
+// ===== FUNÇÕES DE ARRAY =====
+
+/**
+ * Embaralha um array
+ */
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+    return arr;
+}
 
-    /**
-     * Atualiza informações do tabuleiro
-     */
-    updateBoardInfo() {
-        const boardNumberEl = $('#board-number');
-        const boardDateEl = $('#board-date');
+/**
+ * Seleciona um elemento aleatório de um array
+ */
+function randomElement(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
 
-        if (boardNumberEl) {
-            boardNumberEl.textContent = `Puzzle #${this.puzzle.id}`;
-        }
+/**
+ * Remove duplicatas de um array
+ */
+function removeDuplicates(array) {
+    return [...new Set(array)];
+}
 
-        if (boardDateEl) {
-            const date = new Date(this.puzzle.date);
-            boardDateEl.textContent = formatDate(date);
-        }
+/**
+ * Filtra um array por uma propriedade
+ */
+function filterByProperty(array, property, value) {
+    return array.filter(item => item[property] === value);
+}
+
+// ===== FUNÇÕES DE DELAY =====
+
+/**
+ * Aguarda um tempo específico
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Executa uma função após um delay
+ */
+function delayedExecution(fn, ms) {
+    return setTimeout(fn, ms);
+}
+
+// ===== FUNÇÕES DE COMPARTILHAMENTO =====
+
+/**
+ * Copia texto para a área de transferência
+ */
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    } else {
+        // Fallback para navegadores antigos
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return Promise.resolve();
     }
+}
 
-    /**
-     * Atualiza uma célula específica após um acerto
-     */
-    updateCell(row, col, municipality) {
-        const cell = $(`#cell-${row}-${col}`);
-        if (cell) {
-            cell.classList.add('correct-animation');
-            
-            setTimeout(() => {
-                this.fillCell(cell, municipality);
-                this.updateScoreDisplay();
-                this.updateGuessesDisplay();
-            }, 300);
-        }
+/**
+ * Compartilha via Web Share API se disponível
+ */
+function shareContent(data) {
+    if (navigator.share) {
+        return navigator.share(data);
+    } else {
+        // Fallback: copiar para clipboard
+        return copyToClipboard(data.text);
     }
+}
 
-    /**
-     * Callback para clique em célula
-     */
-    onCellClick(row, col) {
-        // Será implementado no main.js
+// ===== FUNÇÕES DE BANDEIRA =====
+
+/**
+ * Obtém a bandeira de um estado (usando emoji de estado dos EUA como referência)
+ * Para municípios, usaremos a bandeira do RS
+ */
+function getMunicipalityFlag() {
+    // Retorna a bandeira do Rio Grande do Sul
+    return '🏳️';
+}
+
+/**
+ * Mapa de emojis para municipios gauchos
+ */
+const MUNICIPALITY_EMOJIS = {
+    'Porto Alegre': '🏛️',
+    'Canoas': '🏭',
+    'Novo Hamburgo': '👟',
+    'Caxias do Sul': '🍇',
+    'Pelotas': '🍑',
+    'Santa Maria': '📚',
+    'Gramado': '🏔️',
+    'Canela': '🌲',
+    'Bento Goncalves': '🍷',
+    'Garibaldi': '🍷',
+    'Sapucaia do Sul': '🏭',
+    'Viam': '🌾',
+    'Alvorada': '🌅',
+    'Gravata': '⛰️',
+    'Cachoerinha': '💧',
+    'Esteio': '🏭',
+    'Taquara': '🌲',
+    'Igrejinha': '⛪',
+    'Torres': '🏖️',
+    'Tramandai': '🏖️',
+    'Capao da Canoa': '🏖️',
+    'Osorio': '🏖️',
+    'Arvorezinha': '🌲',
+    'Jaguarao': '🐆',
+    'Rio Grande': '⚓',
+    'Santana do Livramento': '🐴',
+    'Bage': '🐴',
+    'Uruguaiana': '🐴',
+    'Santo Angelo': '⛪',
+    'Cruz Alta': '🌾',
+    'Passo Fundo': '🌾',
+    'Erechim': '🌾',
+    'Frederico Westphalen': '🌲',
+    'Tres Passos': '🌾',
+    'Soledade': '🌾',
+    'Guapore': '🌾',
+    'Getulio Vargas': '🌾',
+    'Vacaria': '🌲',
+    'Lagoa Vermelha': '🌾',
+    'Bom Jesus': '⛰️',
+    'Cambara do Sul': '⛰️',
+    'Sao Francisco de Paula': '🌲',
+    'Jaquirana': '❄️'
+};
+
+/**
+ * Obtem o emoji de um municipio
+ */
+function getMunicipalityEmoji(municipalityName) {
+    // Procurar no mapa de emojis
+    if (MUNICIPALITY_EMOJIS[municipalityName]) {
+        return MUNICIPALITY_EMOJIS[municipalityName];
     }
+    
+    // Fallback: retornar emoji generico baseado na primeira letra
+    const firstLetter = municipalityName.charAt(0).toUpperCase();
+    const emojiMap = {
+        'A': '🅰️', 'B': '🅱️', 'C': '©️', 'D': '🆃', 'E': '🅴', 'F': '🅵',
+        'G': '🅶', 'H': '🅷', 'I': 'ℹ️', 'J': '🅹', 'K': '🅺', 'L': '🅻',
+        'M': 'Ⓜ️', 'N': '🅽', 'O': '⭕', 'P': '🅿️', 'Q': '🆀', 'R': '🆁',
+        'S': '🆂', 'T': '🆃', 'U': '🆄', 'V': '🆅', 'W': '🆆', 'X': '❌',
+        'Y': '🆈', 'Z': '🆉'
+    };
+    
+    return emojiMap[firstLetter] || '📍';
+}
+
+// ===== DEBUG =====
+
+/**
+ * Log com timestamp
+ */
+function debugLog(message, data = null) {
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    console.log(`[${timestamp}] ${message}`, data || '');
+}
+
+/**
+ * Log de erro com timestamp
+ */
+function debugError(message, error = null) {
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    console.error(`[${timestamp}] ERRO: ${message}`, error || '');
 }

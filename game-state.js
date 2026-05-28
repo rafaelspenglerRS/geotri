@@ -1,149 +1,185 @@
-/**
- * GERENCIAMENTO DE ESTADO DO JOGO
- */
+/* ===== ANIMAÇÕES GERAIS ===== */
 
-class GameState {
-    constructor(puzzle) {
-        this.puzzle = puzzle;
-        this.score = 900;
-        this.guessesLeft = 9;
-        this.filled = new Map(); // key: "row,col", value: {municipality, rarity}
-        this.history = [];
-        this.startTime = Date.now();
-        this.isGameOver = false;
-        this.isGameWon = false;
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
     }
-
-    /**
-     * Adiciona um palpite ao histórico
-     */
-    addGuess(row, col, municipality, isCorrect) {
-        const guess = {
-            row,
-            col,
-            municipality,
-            isCorrect,
-            timestamp: Date.now()
-        };
-
-        this.history.push(guess);
-
-        if (isCorrect) {
-            this.filled.set(`${row},${col}`, {
-                municipality: municipality,
-                rarity: this.puzzle.rarities[row][col] || 50
-            });
-            this.updateScore(municipality, row, col);
-            this.checkGameWon();
-        } else {
-            this.guessesLeft--;
-            if (this.guessesLeft <= 0) {
-                this.isGameOver = true;
-            }
-        }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
+}
 
-    /**
-     * Atualiza a pontuação
-     */
-    updateScore(municipality, row, col) {
-        const rarity = this.puzzle.rarities[row][col] || 50;
-        const penalty = (rarity / 100) * 900;
-        this.score = Math.max(0, this.score - penalty);
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
     }
-
-    /**
-     * Verifica se o jogo foi vencido
-     */
-    checkGameWon() {
-        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
-        if (this.filled.size === totalCells) {
-            this.isGameWon = true;
-        }
+    to {
+        opacity: 0;
+        transform: translateY(-10px);
     }
+}
 
-    /**
-     * Verifica se uma célula já foi preenchida
-     */
-    isCellFilled(row, col) {
-        return this.filled.has(`${row},${col}`);
+@keyframes fadeIn {
+    from {
+        opacity: 0;
     }
-
-    /**
-     * Obtém o município preenchido em uma célula
-     */
-    getFilledMunicipality(row, col) {
-        const filled = this.filled.get(`${row},${col}`);
-        return filled ? filled.municipality : null;
+    to {
+        opacity: 1;
     }
+}
 
-    /**
-     * Retorna o estado do jogo como JSON
-     */
-    toJSON() {
-        return {
-            score: this.score,
-            guessesLeft: this.guessesLeft,
-            filled: Array.from(this.filled.entries()),
-            history: this.history,
-            isGameOver: this.isGameOver,
-            isGameWon: this.isGameWon,
-            startTime: this.startTime
-        };
+@keyframes fadeOut {
+    from {
+        opacity: 1;
     }
-
-    /**
-     * Carrega o estado do jogo a partir de JSON
-     */
-    fromJSON(data) {
-        this.score = data.score || 900;
-        this.guessesLeft = data.guessesLeft || 9;
-        this.filled = new Map(data.filled || []);
-        this.history = data.history || [];
-        this.isGameOver = data.isGameOver || false;
-        this.isGameWon = data.isGameWon || false;
-        this.startTime = data.startTime || Date.now();
+    to {
+        opacity: 0;
     }
+}
 
-    /**
-     * Reseta o estado do jogo
-     */
-    reset() {
-        this.score = 900;
-        this.guessesLeft = 9;
-        this.filled.clear();
-        this.history = [];
-        this.startTime = Date.now();
-        this.isGameOver = false;
-        this.isGameWon = false;
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
     }
-
-    /**
-     * Retorna o tempo decorrido em segundos
-     */
-    getElapsedTime() {
-        return Math.floor((Date.now() - this.startTime) / 1000);
+    50% {
+        opacity: 0.7;
     }
+}
 
-    /**
-     * Retorna o número de acertos
-     */
-    getCorrectGuesses() {
-        return this.filled.size;
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
     }
-
-    /**
-     * Retorna o número de tentativas usadas
-     */
-    getUsedGuesses() {
-        return 9 - this.guessesLeft;
+    50% {
+        transform: translateY(-10px);
     }
+}
 
-    /**
-     * Retorna o percentual de células preenchidas
-     */
-    getCompletionPercentage() {
-        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
-        return Math.round((this.filled.size / totalCells) * 100);
+/* ===== CLASSES DE ANIMAÇÃO ===== */
+
+.animate-slide-in {
+    animation: slideIn 0.3s ease forwards;
+}
+
+.animate-slide-out {
+    animation: slideOut 0.3s ease forwards;
+}
+
+.animate-fade-in {
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.animate-fade-out {
+    animation: fadeOut 0.3s ease forwards;
+}
+
+.animate-pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.animate-bounce {
+    animation: bounce 0.6s ease infinite;
+}
+
+/* ===== TRANSIÇÕES ===== */
+
+.transition-all {
+    transition: all 0.3s ease;
+}
+
+.transition-colors {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+.transition-transform {
+    transition: transform 0.3s ease;
+}
+
+/* ===== ESTADOS VISUAIS ===== */
+
+.hidden {
+    display: none !important;
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+.opacity-0 {
+    opacity: 0;
+}
+
+.opacity-50 {
+    opacity: 0.5;
+}
+
+.opacity-100 {
+    opacity: 1;
+}
+
+/* ===== LOADING ===== */
+
+.loading {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 3px solid #ecf0f1;
+    border-top-color: #3498db;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ===== NOTIFICAÇÕES ===== */
+
+.notification {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: white;
+    padding: 16px 24px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+    max-width: 300px;
+}
+
+.notification.success {
+    border-left: 4px solid #27ae60;
+    color: #27ae60;
+}
+
+.notification.error {
+    border-left: 4px solid #e74c3c;
+    color: #e74c3c;
+}
+
+.notification.info {
+    border-left: 4px solid #3498db;
+    color: #3498db;
+}
+
+.notification.warning {
+    border-left: 4px solid #f39c12;
+    color: #f39c12;
+}
+
+/* ===== RESPONSIVIDADE ===== */
+
+@media (max-width: 480px) {
+    .notification {
+        bottom: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
     }
 }
