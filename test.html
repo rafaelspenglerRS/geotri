@@ -1,81 +1,380 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Teste Geo TRI</title>
-    <style>
-        body { font-family: Arial; margin: 20px; }
-        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
-        .pass { background: #90EE90; }
-        .fail { background: #FFB6C6; }
-    </style>
-</head>
-<body>
-    <h1>Teste do Geo TRI</h1>
-    <div id="results"></div>
+/**
+ * ARQUIVO PRINCIPAL - GEO TRI
+ */
 
-    <script src="js/utils.js"></script>
-    <script src="js/game-state.js"></script>
-    <script src="js/puzzle-generator.js"></script>
-    <script src="js/renderer.js"></script>
-    <script src="js/validator.js"></script>
-    <script src="js/persistence.js"></script>
+let municipalities = [];
+let puzzle = null;
+let gameState = null;
+let renderer = null;
+let validator = null;
+let generator = null;
 
-    <script>
-        const results = document.getElementById('results');
+let currentModalRow = null;
+let currentModalCol = null;
 
-        function addTest(name, passed, details = '') {
-            const div = document.createElement('div');
-            div.className = `test ${passed ? 'pass' : 'fail'}`;
-            div.innerHTML = `<strong>${name}</strong>: ${passed ? '✓ PASS' : '✗ FAIL'} ${details}`;
-            results.appendChild(div);
+/**
+ * Inicializa o jogo
+ */
+async function initGame() {
+    try {
+        debugLog('Iniciando Geo TRI...');
+        
+        // Carregar dados de municípios
+        await loadMunicipalitiesData();
+        
+        // Inicializar gerador de puzzles
+        generator = new PuzzleGenerator(municipalities);
+        
+        // Gerar puzzle do dia
+        puzzle = generator.generateDailyPuzzle();
+        debugLog('Puzzle gerado', { id: puzzle.id, date: puzzle.date });
+        
+        // Inicializar estado do jogo
+        gameState = new GameState(puzzle);
+        
+        // Tentar carregar jogo salvo
+        const hasSavedGame = GamePersistence.hasGameToday(puzzle.id);
+        if (hasSavedGame) {
+            GamePersistence.loadGame(gameState, puzzle.id);
+            debugLog('Jogo salvo carregado');
         }
+        
+        // Inicializar renderizador
+        renderer = new GameRenderer(puzzle, gameState);
+        
+        // Inicializar validador
+        validator = new AnswerValidator(puzzle);
+        
+        // Renderizar tabuleiro
+        renderer.renderBoard();
+        
+        // Configurar listeners
+        setupEventListeners();
+        
+        debugLog('Geo TRI iniciado com sucesso');
+    } catch (e) {
+        debugError('Erro ao iniciar jogo', e);
+        showNotification('Erro ao carregar o jogo. Tente recarregar a página.', 'error');
+    }
+}
 
-        // Teste 1: Verificar se as classes foram carregadas
-        addTest('PuzzleGenerator', typeof PuzzleGenerator === 'function');
-        addTest('GameState', typeof GameState === 'function');
-        addTest('GameRenderer', typeof GameRenderer === 'function');
-        addTest('AnswerValidator', typeof AnswerValidator === 'function');
+/**
+ * Carrega dados de municípios do JSON
+ */
+async function loadMunicipalitiesData() {
+    try {
+        // Detectar se está em GitHub Pages e ajustar caminho
+        let dataPath = 'data/municipalities.json';
+        if (window.location.hostname === 'rafaelspenglerrs.github.io') {
+            dataPath = '/geotri/data/municipalities.json';
+        }
+        
+        const response = await fetch(dataPath);
+        if (!response.ok) {
+            throw new Error(`Erro HTTP: ${response.status} ao carregar ${dataPath}`);
+        }
+        
+        const data = await response.json();
+        municipalities = data.municipalities || [];
+        debugLog(`${municipalities.length} municípios carregados`);
+        
+        if (municipalities.length === 0) {
+            throw new Error('Nenhum município foi carregado do arquivo JSON');
+        }
+    } catch (e) {
+        debugError('Erro ao carregar dados de municípios', e);
+        showNotification(`Erro ao carregar dados: ${e.message}`, 'error');
+        throw e;
+    }
+}
 
-        // Teste 2: Carregar dados
-        fetch('data/municipalities.json')
-            .then(r => r.json())
-            .then(data => {
-                addTest('Dados carregados', data.municipalities && data.municipalities.length > 0, `${data.municipalities.length} municípios`);
+/**
+ * Configura listeners de eventos
+ */
+function setupEventListeners() {
+    // Modal
+    const modalOverlay = $('#modal-overlay');
+    const modalClose = $('#modal-close');
+    const modalCancel = $('#modal-cancel');
+    const modalGuess = $('#modal-guess');
+    const searchInput = $('#search-input');
+    
+    if (modalClose) {
+        modalClose.addEventListener('click', closeModal);
+    }
+    
+    if (modalCancel) {
+        modalCancel.addEventListener('click', closeModal);
+    }
+    
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', closeModal);
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearchInput);
+        searchInput.addEventListener('keydown', handleSearchKeydown);
+    }
+    
+    if (modalGuess) {
+        modalGuess.addEventListener('click', handleGuess);
+    }
+    
+    // Botões de ação
+    const shareBtn = $('#share-btn');
+    const finishBtn = $('#finish-btn');
+    
+    if (shareBtn) {
+        shareBtn.addEventListener('click', handleShare);
+    }
+    
+    if (finishBtn) {
+        finishBtn.addEventListener('click', handleFinish);
+    }
+}
 
-                // Teste 3: Criar gerador
-                try {
-                    const gen = new PuzzleGenerator(data.municipalities);
-                    addTest('Gerador criado', true);
+/**
+ * Abre o modal de busca para uma célula
+ */
+function openModal(row, col) {
+    currentModalRow = row;
+    currentModalCol = col;
+    
+    const modal = $('#search-modal');
+    const overlay = $('#modal-overlay');
+    const searchInput = $('#search-input');
+    const modalClueH = $('#modal-clue-h');
+    const modalClueV = $('#modal-clue-v');
+    
+    // Atualizar pistas
+    if (modalClueH) {
+        modalClueH.textContent = puzzle.cluesHorizontal[col];
+    }
+    
+    if (modalClueV) {
+        modalClueV.textContent = puzzle.cluesVertical[row];
+    }
+    
+    // Limpar input
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    
+    // Desabilitar botao de confirmação
+    const guessBtn = $('#modal-guess');
+    if (guessBtn) {
+        guessBtn.disabled = true;
+    }
+    
+    // Mostrar modal
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+    
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+    
+    // Limpar sugestões
+    const suggestionsEl = $('#suggestions');
+    if (suggestionsEl) {
+        suggestionsEl.innerHTML = '';
+    }
+}
 
-                    // Teste 4: Gerar puzzle
-                    const puzzle = gen.generateDailyPuzzle();
-                    addTest('Puzzle gerado', puzzle && puzzle.id, `ID: ${puzzle.id}`);
+/**
+ * Fecha o modal de busca
+ */
+function closeModal() {
+    const modal = $('#search-modal');
+    const overlay = $('#modal-overlay');
+    
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+    
+    currentModalRow = null;
+    currentModalCol = null;
+}
 
-                    // Teste 5: Verificar validMunicipalities
-                    const hasValidMun = puzzle && puzzle.validMunicipalities && puzzle.validMunicipalities[0] && puzzle.validMunicipalities[0][0];
-                    addTest('validMunicipalities', hasValidMun, hasValidMun ? `${puzzle.validMunicipalities[0][0].length} válidos` : '');
+/**
+ * Manipula entrada de busca
+ */
+function handleSearchInput(event) {
+    const input = event.target.value;
+    const suggestionsEl = $('#suggestions');
+    const guessBtn = $('#modal-guess');
+    
+    if (!suggestionsEl || currentModalRow === null || currentModalCol === null) {
+        return;
+    }
+    
+    // Habilitar/desabilitar botao baseado no input
+    if (guessBtn) {
+        guessBtn.disabled = isEmpty(input);
+    }
+    
+    if (isEmpty(input)) {
+        suggestionsEl.innerHTML = '';
+        return;
+    }
+    
+    // Aqui você poderia adicionar lógica de sugestões
+    // Por enquanto, deixaremos vazio
+    suggestionsEl.innerHTML = '';
+}
 
-                    // Teste 6: Criar validador
-                    try {
-                        const validator = new AnswerValidator(puzzle);
-                        addTest('Validador criado', true);
+/**
+ * Manipula tecla pressionada na busca
+ */
+function handleSearchKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        handleGuess();
+    }
+}
 
-                        // Teste 7: Validar resposta
-                        if (hasValidMun && puzzle.validMunicipalities[0][0].length > 0) {
-                            const validMun = puzzle.validMunicipalities[0][0][0];
-                            const result = validator.validateAnswer(0, 0, validMun);
-                            addTest('Validação', result.isValid, `${validMun}: ${result.message}`);
-                        }
-                    } catch (e) {
-                        addTest('Validador', false, e.message);
-                    }
-                } catch (e) {
-                    addTest('Gerador', false, e.message);
+/**
+ * Manipula o palpite
+ */
+function handleGuess() {
+    if (currentModalRow === null || currentModalCol === null) {
+        return;
+    }
+    
+    const searchInput = $('#search-input');
+    const userInput = searchInput.value;
+    
+    if (isEmpty(userInput)) {
+        showNotification('Digite o nome de um município', 'warning');
+        return;
+    }
+    
+    // Validar resposta
+    const result = validator.validateAnswer(currentModalRow, currentModalCol, userInput);
+    
+    if (result.isValid) {
+        // Acerto!
+        gameState.addGuess(currentModalRow, currentModalCol, result.municipality, true);
+        renderer.updateCell(currentModalRow, currentModalCol, result.municipality);
+        
+        showNotification(`✓ Correto! ${result.municipality}`, 'success');
+        
+        // Salvar progresso
+        GamePersistence.saveGame(gameState, puzzle.id);
+        
+        // Verificar se ganhou
+        if (gameState.isGameWon) {
+            setTimeout(() => {
+                showGameStatus('🎉 Você venceu! Parabéns!', 'success');
+                GamePersistence.addToHistory({
+                    puzzleId: puzzle.id,
+                    score: gameState.score,
+                    completion: 100,
+                    isWon: true
+                });
+            }, 500);
+        }
+        
+        closeModal();
+    } else {
+        // Erro!
+        gameState.addGuess(currentModalRow, currentModalCol, userInput, false);
+        renderer.updateGuessesDisplay();
+        
+        showNotification(result.message, 'error');
+        
+        // Salvar progresso
+        GamePersistence.saveGame(gameState, puzzle.id);
+        
+        // Verificar se perdeu
+        if (gameState.isGameOver) {
+            setTimeout(() => {
+                showGameStatus('💔 Fim de jogo! Tentativas esgotadas.', 'error');
+                GamePersistence.addToHistory({
+                    puzzleId: puzzle.id,
+                    score: gameState.score,
+                    completion: gameState.getCompletionPercentage(),
+                    isWon: false
+                });
+            }, 500);
+        }
+        
+        // Limpar input
+        searchInput.value = '';
+        searchInput.focus();
+    }
+}
+
+/**
+ * Manipula compartilhamento
+ */
+function handleShare() {
+    const shareText = GamePersistence.generateShareText(gameState, puzzle);
+    
+    shareContent({
+        title: 'Geo TRI',
+        text: shareText,
+        url: window.location.href
+    }).then(() => {
+        showNotification('Compartilhado com sucesso!', 'success');
+    }).catch(err => {
+        // Fallback: copiar para clipboard
+        copyToClipboard(shareText).then(() => {
+            showNotification('Texto copiado para a área de transferência!', 'success');
+        });
+    });
+}
+
+/**
+ * Manipula revelação de solução
+ */
+function handleFinish() {
+    if (confirm('Tem certeza que deseja revelar a solução? Não poderá mais jogar hoje.')) {
+        // Revelar todas as células
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                if (!gameState.isCellFilled(row, col)) {
+                    const municipality = puzzle.answers[row][col];
+                    gameState.filled.set(`${row},${col}`, {
+                        municipality: municipality,
+                        rarity: puzzle.rarities[row][col]
+                    });
+                    renderer.updateCell(row, col, municipality);
                 }
-            })
-            .catch(e => {
-                addTest('Dados', false, e.message);
-            });
-    </script>
-</body>
-</html>
+            }
+        }
+        
+        gameState.isGameOver = true;
+        GamePersistence.saveGame(gameState, puzzle.id);
+        showGameStatus('Solução revelada!', 'info');
+    }
+}
+
+/**
+ * Callback para clique em célula (chamado pelo renderer)
+ */
+function onCellClickCallback(row, col) {
+    if (!gameState.isCellFilled(row, col) && !gameState.isGameOver && !gameState.isGameWon) {
+        openModal(row, col);
+    }
+}
+
+// Sobrescrever o callback no renderer
+GameRenderer.prototype.onCellClick = function(row, col) {
+    onCellClickCallback(row, col);
+};
+
+/**
+ * Inicia o jogo quando o DOM estiver pronto
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    initGame();
+    // Limpar histórico antigo após iniciar
+    GamePersistence.cleanOldHistory();
+});

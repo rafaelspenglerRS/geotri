@@ -1,126 +1,139 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geo TRI - Puzzle de Cidades Gaúchas</title>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/grid.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/animations.css">
-</head>
-<body>
-    <div id="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">🗺️ Geo TRI</h1>
-                <div class="header-info">
-                    <div class="info-item">
-                        <span class="label">Pontuação</span>
-                        <span class="value" id="score">900</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Tentativas</span>
-                        <span class="value" id="guesses">9/9</span>
-                    </div>
-                </div>
-            </div>
-        </header>
+/**
+ * VALIDADOR DE RESPOSTAS - GEO TRI
+ */
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Board Info -->
-            <div class="board-info">
-                <span id="board-number">Puzzle #1</span>
-                <span id="board-date">Hoje</span>
-            </div>
+class AnswerValidator {
+    constructor(puzzle) {
+        this.puzzle = puzzle;
+        this.buildAliasMap();
+    }
 
-            <!-- Game Container -->
-            <div class="game-container">
-                <!-- Pistas Horizontais (Top) -->
-                <div class="clues-top">
-                    <div class="clue-spacer"></div>
-                    <div class="clue" id="clue-h-0"></div>
-                    <div class="clue" id="clue-h-1"></div>
-                    <div class="clue" id="clue-h-2"></div>
-                </div>
+    /**
+     * Constrói um mapa de aliases para municípios
+     */
+    buildAliasMap() {
+        this.aliases = {
+            // Adicionar aliases comuns aqui se necessário
+            // Exemplo: 'porto alegre': ['p.a.', 'poa']
+        };
+    }
 
-                <!-- Grid com Pistas Verticais -->
-                <div class="grid-wrapper">
-                    <!-- Pistas Verticais (Left) -->
-                    <div class="clues-left">
-                        <div class="clue" id="clue-v-0"></div>
-                        <div class="clue" id="clue-v-1"></div>
-                        <div class="clue" id="clue-v-2"></div>
-                    </div>
+    /**
+     * Valida se um nome de município está correto para uma célula
+     * NOVO: Aceita QUALQUER município que esteja na lista de válidos
+     */
+    validateAnswer(row, col, userInput) {
+        if (isEmpty(userInput)) {
+            return {
+                isValid: false,
+                message: 'Digite o nome de um município'
+            };
+        }
 
-                    <!-- Grid 3x3 -->
-                    <div class="grid" id="grid">
-                        <!-- Células serão geradas por JavaScript -->
-                    </div>
-                </div>
-            </div>
+        // Obter lista de municípios válidos para esta célula
+        const validMunicipalities = this.puzzle.validMunicipalities[row][col];
+        
+        if (!validMunicipalities || validMunicipalities.length === 0) {
+            return {
+                isValid: false,
+                message: 'Nenhum município válido para esta combinação'
+            };
+        }
 
-            <!-- Action Buttons -->
-            <div class="action-buttons">
-                <button id="share-btn" class="btn btn-secondary">
-                    <span>📤 Compartilhar</span>
-                </button>
-                <button id="finish-btn" class="btn btn-primary">
-                    <span>🏁 Revelar Solução</span>
-                </button>
-            </div>
+        // Normalizar entrada do usuário
+        const normalized = normalizeMunicipalityName(userInput);
 
-            <!-- Game Status -->
-            <div id="game-status" class="game-status hidden"></div>
-        </main>
+        // Verificar se está na lista de válidos
+        for (let validMun of validMunicipalities) {
+            const validNormalized = normalizeMunicipalityName(validMun);
+            
+            if (normalized === validNormalized) {
+                return {
+                    isValid: true,
+                    municipality: validMun,
+                    message: `✓ Correto! ${validMun}`
+                };
+            }
 
-        <!-- Modal de Busca -->
-        <div id="search-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Encontre um município</h2>
-                    <button class="modal-close" id="modal-close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="clues-display">
-                        <div class="clue-item">
-                            <span class="clue-label">Horizontal:</span>
-                            <span class="clue-text" id="modal-clue-h"></span>
-                        </div>
-                        <div class="clue-item">
-                            <span class="clue-label">Vertical:</span>
-                            <span class="clue-text" id="modal-clue-v"></span>
-                        </div>
-                    </div>
-                    <input 
-                        type="text" 
-                        id="search-input" 
-                        class="search-input" 
-                        placeholder="Digite o nome do município..."
-                        autocomplete="off"
-                    >
-                    <div class="suggestions" id="suggestions"></div>
-                </div>
-                <div class="modal-footer">
-                    <button id="modal-cancel" class="btn btn-secondary">Cancelar</button>
-                    <button id="modal-guess" class="btn btn-primary" disabled>Confirmar</button>
-                </div>
-            </div>
-        </div>
+            // Verificar aliases
+            const aliases = this.aliases[validNormalized] || [];
+            if (aliases.includes(normalized)) {
+                return {
+                    isValid: true,
+                    municipality: validMun,
+                    message: `✓ Correto! ${validMun}`
+                };
+            }
+        }
 
-        <!-- Overlay -->
-        <div id="modal-overlay" class="modal-overlay hidden"></div>
-    </div>
+        // Se não encontrou, retornar mensagem de erro
+        return {
+            isValid: false,
+            message: `✗ Esse município não satisfaz as pistas desta célula`
+        };
+    }
 
-    <!-- Scripts -->
-    <script src="js/utils.js"></script>
-    <script src="js/game-state.js"></script>
-    <script src="js/puzzle-generator.js"></script>
-    <script src="js/renderer.js"></script>
-    <script src="js/validator.js"></script>
-    <script src="js/persistence.js"></script>
-    <script src="js/main.js"></script>
-</body>
-</html>
+    /**
+     * Encontra sugestões de municípios baseado na entrada do usuário
+     */
+    getSuggestions(row, col, userInput) {
+        if (isEmpty(userInput)) {
+            return [];
+        }
+
+        const validMunicipalities = this.puzzle.validMunicipalities[row][col];
+        if (!validMunicipalities || validMunicipalities.length === 0) {
+            return [];
+        }
+
+        const normalized = normalizeMunicipalityName(userInput);
+        const suggestions = [];
+
+        // Encontrar municípios que começam com o texto digitado
+        for (let mun of validMunicipalities) {
+            const munNormalized = normalizeMunicipalityName(mun);
+            if (munNormalized.startsWith(normalized)) {
+                suggestions.push(mun);
+            }
+        }
+
+        // Se não encontrou por começo, procurar por substring
+        if (suggestions.length === 0) {
+            for (let mun of validMunicipalities) {
+                const munNormalized = normalizeMunicipalityName(mun);
+                if (munNormalized.includes(normalized)) {
+                    suggestions.push(mun);
+                }
+            }
+        }
+
+        return suggestions.slice(0, 5); // Retornar máximo 5 sugestões
+    }
+
+    /**
+     * Retorna todos os municípios válidos para uma célula
+     */
+    getValidMunicipalities(row, col) {
+        return this.puzzle.validMunicipalities[row][col] || [];
+    }
+
+    /**
+     * Verifica se um município é válido para uma célula específica
+     */
+    isValidForCell(row, col, municipalityName) {
+        const validMunicipalities = this.puzzle.validMunicipalities[row][col];
+        if (!validMunicipalities) {
+            return false;
+        }
+
+        const normalized = normalizeMunicipalityName(municipalityName);
+        
+        for (let validMun of validMunicipalities) {
+            if (normalizeMunicipalityName(validMun) === normalized) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}

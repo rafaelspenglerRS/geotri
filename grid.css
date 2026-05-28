@@ -1,81 +1,513 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Teste Geo TRI</title>
-    <style>
-        body { font-family: Arial; margin: 20px; }
-        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
-        .pass { background: #90EE90; }
-        .fail { background: #FFB6C6; }
-    </style>
-</head>
-<body>
-    <h1>Teste do Geo TRI</h1>
-    <div id="results"></div>
+/* ========================================
+   GEO TRI - CSS PRINCIPAL
+   Paleta: Invest RS
+   ======================================== */
 
-    <script src="js/utils.js"></script>
-    <script src="js/game-state.js"></script>
-    <script src="js/puzzle-generator.js"></script>
-    <script src="js/renderer.js"></script>
-    <script src="js/validator.js"></script>
-    <script src="js/persistence.js"></script>
+:root {
+    /* Cores Invest RS */
+    --color-primary: #1B8A3E;
+    --color-primary-dark: #156B31;
+    --color-primary-light: #2DA84E;
+    --color-accent-yellow: #FFC107;
+    --color-accent-pink: #D63384;
+    --color-dark: #333333;
+    --color-light: #F5F5F5;
+    --color-white: #FFFFFF;
+    --color-gray: #666666;
+    --color-border: #DDDDDD;
+    
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 16px;
+    --spacing-lg: 24px;
+    --spacing-xl: 32px;
+    
+    /* Border Radius */
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12);
+    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.15);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
 
-    <script>
-        const results = document.getElementById('results');
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
 
-        function addTest(name, passed, details = '') {
-            const div = document.createElement('div');
-            div.className = `test ${passed ? 'pass' : 'fail'}`;
-            div.innerHTML = `<strong>${name}</strong>: ${passed ? '✓ PASS' : '✗ FAIL'} ${details}`;
-            results.appendChild(div);
-        }
+html, body {
+    width: 100%;
+    height: 100%;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background-color: var(--color-light);
+    color: var(--color-dark);
+    line-height: 1.6;
+}
 
-        // Teste 1: Verificar se as classes foram carregadas
-        addTest('PuzzleGenerator', typeof PuzzleGenerator === 'function');
-        addTest('GameState', typeof GameState === 'function');
-        addTest('GameRenderer', typeof GameRenderer === 'function');
-        addTest('AnswerValidator', typeof AnswerValidator === 'function');
+#app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background-color: var(--color-light);
+}
 
-        // Teste 2: Carregar dados
-        fetch('data/municipalities.json')
-            .then(r => r.json())
-            .then(data => {
-                addTest('Dados carregados', data.municipalities && data.municipalities.length > 0, `${data.municipalities.length} municípios`);
+/* ========================================
+   HEADER
+   ======================================== */
 
-                // Teste 3: Criar gerador
-                try {
-                    const gen = new PuzzleGenerator(data.municipalities);
-                    addTest('Gerador criado', true);
+.header {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: var(--color-white);
+    padding: var(--spacing-lg) var(--spacing-md);
+    box-shadow: var(--shadow-md);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
 
-                    // Teste 4: Gerar puzzle
-                    const puzzle = gen.generateDailyPuzzle();
-                    addTest('Puzzle gerado', puzzle && puzzle.id, `ID: ${puzzle.id}`);
+.header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--spacing-md);
+}
 
-                    // Teste 5: Verificar validMunicipalities
-                    const hasValidMun = puzzle && puzzle.validMunicipalities && puzzle.validMunicipalities[0] && puzzle.validMunicipalities[0][0];
-                    addTest('validMunicipalities', hasValidMun, hasValidMun ? `${puzzle.validMunicipalities[0][0].length} válidos` : '');
+.logo {
+    font-size: 24px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
 
-                    // Teste 6: Criar validador
-                    try {
-                        const validator = new AnswerValidator(puzzle);
-                        addTest('Validador criado', true);
+.header-info {
+    display: flex;
+    gap: var(--spacing-lg);
+    align-items: center;
+}
 
-                        // Teste 7: Validar resposta
-                        if (hasValidMun && puzzle.validMunicipalities[0][0].length > 0) {
-                            const validMun = puzzle.validMunicipalities[0][0][0];
-                            const result = validator.validateAnswer(0, 0, validMun);
-                            addTest('Validação', result.isValid, `${validMun}: ${result.message}`);
-                        }
-                    } catch (e) {
-                        addTest('Validador', false, e.message);
-                    }
-                } catch (e) {
-                    addTest('Gerador', false, e.message);
-                }
-            })
-            .catch(e => {
-                addTest('Dados', false, e.message);
-            });
-    </script>
-</body>
-</html>
+.info-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.info-item .label {
+    font-size: 11px;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.info-item .value {
+    font-size: 24px;
+    font-weight: 700;
+}
+
+/* ========================================
+   MAIN CONTENT
+   ======================================== */
+
+.main-content {
+    flex: 1;
+    padding: var(--spacing-lg) var(--spacing-md);
+    max-width: 1200px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.board-info {
+    text-align: center;
+    margin-bottom: var(--spacing-lg);
+    font-size: 14px;
+    color: var(--color-gray);
+}
+
+.board-info-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--color-dark);
+    margin-bottom: var(--spacing-xs);
+}
+
+.board-info-date {
+    font-size: 13px;
+    color: var(--color-gray);
+}
+
+/* ========================================
+   GAME CONTAINER
+   ======================================== */
+
+.game-container {
+    background: var(--color-white);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+    box-shadow: var(--shadow-md);
+    margin-bottom: var(--spacing-lg);
+    overflow-x: auto;
+}
+
+/* ========================================
+   GRID LAYOUT (3x3)
+   ======================================== */
+
+.board-grid {
+    display: grid;
+    grid-template-columns: 120px repeat(3, 1fr);
+    grid-template-rows: 80px repeat(3, 1fr);
+    gap: 2px;
+    background-color: var(--color-border);
+    padding: 2px;
+    border-radius: var(--radius-md);
+    min-width: 600px;
+}
+
+/* Caixas de pistas verticais (esquerda) */
+.clue-vertical {
+    grid-column: 1;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: var(--color-white);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+    word-break: break-word;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Caixas de pistas horizontais (topo) */
+.clue-horizontal {
+    grid-row: 1;
+    background: linear-gradient(135deg, var(--color-accent-yellow) 0%, #FFB300 100%);
+    color: var(--color-dark);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.3;
+    word-break: break-word;
+    box-shadow: var(--shadow-sm);
+}
+
+/* Célula de canto (superior esquerdo) */
+.board-corner {
+    grid-column: 1;
+    grid-row: 1;
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    border-radius: var(--radius-md);
+}
+
+/* Células do jogo */
+.game-cell {
+    background: var(--color-white);
+    border: 2px solid var(--color-border);
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 600;
+    min-height: 100px;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.game-cell:hover:not(.filled) {
+    background-color: #F9F9F9;
+    border-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.game-cell.filled {
+    background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%);
+    border-color: var(--color-primary);
+    cursor: default;
+}
+
+.game-cell.filled:hover {
+    transform: none;
+}
+
+.game-cell.error {
+    background: linear-gradient(135deg, #FFEBEE 0%, #FFCDD2 100%);
+    border-color: #C62828;
+    animation: shake 0.4s ease-in-out;
+}
+
+.cell-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-xs);
+    text-align: center;
+}
+
+.cell-emoji {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.cell-name {
+    font-size: 12px;
+    color: var(--color-dark);
+    font-weight: 600;
+    word-break: break-word;
+    max-width: 90%;
+}
+
+.cell-plus {
+    font-size: 24px;
+    color: var(--color-gray);
+    font-weight: 300;
+}
+
+/* ========================================
+   ACTION BUTTONS
+   ======================================== */
+
+.action-buttons {
+    display: flex;
+    gap: var(--spacing-md);
+    justify-content: center;
+    margin-bottom: var(--spacing-lg);
+    flex-wrap: wrap;
+}
+
+.btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: none;
+    border-radius: var(--radius-md);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+    color: var(--color-white);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-primary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, var(--color-accent-yellow) 0%, #FFB300 100%);
+    color: var(--color-dark);
+    box-shadow: var(--shadow-md);
+}
+
+.btn-secondary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.btn-secondary:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.btn-cancel {
+    background: var(--color-light);
+    color: var(--color-dark);
+    border: 2px solid var(--color-border);
+}
+
+.btn-cancel:hover:not(:disabled) {
+    background: var(--color-border);
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+/* ========================================
+   GAME STATUS
+   ======================================== */
+
+.game-status {
+    text-align: center;
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-lg);
+    font-weight: 600;
+    animation: slideIn 0.3s ease;
+}
+
+.game-status.hidden {
+    display: none;
+}
+
+.game-status.success {
+    background: #D4EDDA;
+    color: #155724;
+    border: 1px solid #C3E6CB;
+}
+
+.game-status.error {
+    background: #F8D7DA;
+    color: #721C24;
+    border: 1px solid #F5C6CB;
+}
+
+.game-status.info {
+    background: #D1ECF1;
+    color: #0C5460;
+    border: 1px solid #BEE5EB;
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ========================================
+   RESPONSIVE DESIGN
+   ======================================== */
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .header-info {
+        width: 100%;
+        justify-content: space-around;
+    }
+
+    .main-content {
+        padding: var(--spacing-md);
+    }
+
+    .board-grid {
+        grid-template-columns: 100px repeat(3, 1fr);
+        grid-template-rows: 70px repeat(3, 1fr);
+        min-width: 100%;
+    }
+
+    .game-cell {
+        min-height: 80px;
+        font-size: 12px;
+    }
+
+    .cell-emoji {
+        font-size: 24px;
+    }
+
+    .clue-vertical,
+    .clue-horizontal {
+        font-size: 11px;
+        padding: var(--spacing-sm);
+    }
+
+    .action-buttons {
+        flex-direction: column;
+    }
+
+    .btn {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .header {
+        padding: var(--spacing-md);
+    }
+
+    .logo {
+        font-size: 18px;
+    }
+
+    .header-info {
+        gap: var(--spacing-md);
+    }
+
+    .info-item .value {
+        font-size: 18px;
+    }
+
+    .main-content {
+        padding: var(--spacing-sm);
+    }
+
+    .board-grid {
+        grid-template-columns: 80px repeat(3, 1fr);
+        grid-template-rows: 60px repeat(3, 1fr);
+        gap: 1px;
+        padding: 1px;
+    }
+
+    .game-cell {
+        min-height: 60px;
+        font-size: 10px;
+    }
+
+    .cell-emoji {
+        font-size: 18px;
+    }
+
+    .cell-name {
+        font-size: 10px;
+    }
+
+    .clue-vertical,
+    .clue-horizontal {
+        font-size: 10px;
+        padding: var(--spacing-xs);
+    }
+
+    .game-container {
+        padding: var(--spacing-md);
+    }
+}

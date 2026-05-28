@@ -1,383 +1,264 @@
 /**
- * UTILITÁRIOS GERAIS
+ * GERADOR DE PUZZLES - GEO TRI
  */
 
-// ===== FUNÇÕES DE FORMATAÇÃO =====
-
-/**
- * Normaliza um nome de município para comparação
- */
-function normalizeMunicipalityName(name) {
-    return name
-        .toLowerCase()
-        .trim()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
-        .replace(/\s+/g, ' '); // Remove espaços extras
-}
-
-/**
- * Formata a data para exibição
- */
-function formatDate(date) {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-    return date.toLocaleDateString('pt-BR', options);
-}
-
-/**
- * Formata um número com separador de milhares
- */
-function formatNumber(num) {
-    return num.toLocaleString('pt-BR');
-}
-
-// ===== FUNÇÕES DE DOM =====
-
-/**
- * Seleciona um elemento do DOM
- */
-function $(selector) {
-    return document.querySelector(selector);
-}
-
-/**
- * Seleciona múltiplos elementos do DOM
- */
-function $$(selector) {
-    return document.querySelectorAll(selector);
-}
-
-/**
- * Cria um elemento com classes e atributos
- */
-function createElement(tag, classes = [], attributes = {}) {
-    const el = document.createElement(tag);
-    
-    if (classes.length > 0) {
-        el.classList.add(...(Array.isArray(classes) ? classes : [classes]));
+class PuzzleGenerator {
+    constructor(municipalities) {
+        this.municipalities = municipalities;
+        this.buildCharacteristicsIndex();
+        this.precomputeValidCombinations();
     }
-    
-    Object.entries(attributes).forEach(([key, value]) => {
-        if (key === 'text') {
-            el.textContent = value;
-        } else if (key === 'html') {
-            el.innerHTML = value;
-        } else {
-            el.setAttribute(key, value);
+
+    /**
+     * Constrói um índice de características para busca rápida
+     */
+    buildCharacteristicsIndex() {
+        this.characteristicsIndex = {};
+        
+        this.municipalities.forEach(mun => {
+            mun.characteristics.forEach(char => {
+                if (!this.characteristicsIndex[char]) {
+                    this.characteristicsIndex[char] = [];
+                }
+                this.characteristicsIndex[char].push(mun.name);
+            });
+        });
+    }
+
+    /**
+     * Pré-calcula todas as combinações válidas de pistas
+     * Isso garante que temos combinações que funcionam
+     */
+    precomputeValidCombinations() {
+        this.validCombinations = []; // Array de {h: clue, v: clue, valid: [municípios]}
+        const allCharacteristics = Object.keys(this.characteristicsIndex);
+        
+        for (let i = 0; i < allCharacteristics.length; i++) {
+            for (let j = 0; j < allCharacteristics.length; j++) {
+                if (i !== j) {
+                    const h = allCharacteristics[i];
+                    const v = allCharacteristics[j];
+                    const valid = this.findValidMunicipalities(h, v);
+                    
+                    if (valid.length > 0) {
+                        this.validCombinations.push({
+                            h: h,
+                            v: v,
+                            valid: valid
+                        });
+                    }
+                }
+            }
         }
-    });
-    
-    return el;
-}
+        
+        debugLog(`Pré-computadas ${this.validCombinations.length} combinações válidas`);
+    }
 
-/**
- * Adiciona classe com animação
- */
-function addClassWithAnimation(el, className, duration = 300) {
-    el.classList.add(className);
-    return new Promise(resolve => {
-        setTimeout(() => {
-            resolve();
-        }, duration);
-    });
-}
+    /**
+     * Gera um puzzle diário determinístico
+     */
+    generateDailyPuzzle() {
+        const today = new Date();
+        const seed = this.getSeedFromDate(today);
+        
+        // Tentar gerar puzzle válido (máximo 50 tentativas)
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const puzzle = this.generatePuzzle(seed + attempt);
+            if (puzzle && this.isValidPuzzle(puzzle)) {
+                debugLog('Puzzle gerado com sucesso', { seed: seed + attempt, attempt });
+                return puzzle;
+            }
+        }
 
-/**
- * Remove classe com animação
- */
-function removeClassWithAnimation(el, className, duration = 300) {
-    el.classList.remove(className);
-    return new Promise(resolve => {
-        setTimeout(() => {
-            resolve();
-        }, duration);
-    });
-}
+        // Se não conseguir, retornar puzzle vazio
+        debugError('Não foi possível gerar um puzzle válido após 50 tentativas');
+        return this.createEmptyPuzzle(seed);
+    }
 
-// ===== FUNÇÕES DE ARMAZENAMENTO =====
+    /**
+     * Gera um puzzle a partir de um seed
+     * ESTRATÉGIA: Seleciona 9 combinações válidas aleatoriamente
+     */
+    generatePuzzle(seed) {
+        if (this.validCombinations.length < 9) {
+            return null; // Não há combinações suficientes
+        }
 
-/**
- * Salva dados no localStorage
- */
-function saveToStorage(key, data) {
-    try {
-        localStorage.setItem(key, JSON.stringify(data));
+        const rng = this.createSeededRNG(seed);
+
+        // Selecionar 9 combinações válidas aleatoriamente
+        const selected = [];
+        const used = new Set();
+        const maxAttempts = 1000;
+        let attempts = 0;
+
+        while (selected.length < 9 && attempts < maxAttempts) {
+            const randomIndex = Math.floor(rng() * this.validCombinations.length);
+            const combination = this.validCombinations[randomIndex];
+            const key = `${combination.h}|${combination.v}`;
+
+            if (!used.has(key)) {
+                selected.push(combination);
+                used.add(key);
+            }
+
+            attempts++;
+        }
+
+        if (selected.length < 9) {
+            return null; // Não conseguiu selecionar 9 combinações únicas
+        }
+
+        // Reorganizar em grid 3x3
+        const cluesHorizontal = [];
+        const cluesVertical = [];
+        const answers = [];
+        const validMunicipalities = [];
+        const rarities = [];
+
+        for (let row = 0; row < 3; row++) {
+            answers[row] = [];
+            validMunicipalities[row] = [];
+            rarities[row] = [];
+
+            for (let col = 0; col < 3; col++) {
+                const index = row * 3 + col;
+                const combination = selected[index];
+
+                // Armazenar pistas
+                if (col === 0) {
+                    cluesVertical[row] = combination.v;
+                }
+                if (row === 0) {
+                    cluesHorizontal[col] = combination.h;
+                }
+
+                // Armazenar respostas
+                validMunicipalities[row][col] = combination.valid;
+
+                // Selecionar um como "resposta principal"
+                const selectedIndex = Math.floor(rng() * combination.valid.length);
+                answers[row][col] = combination.valid[selectedIndex];
+
+                // Calcular raridade
+                const percentage = (combination.valid.length / this.municipalities.length) * 100;
+                rarities[row][col] = Math.round(percentage * 10) / 10;
+            }
+        }
+
+        // Verificar restrição de categorias extras
+        const extraCategories = ['Contém Santo(a)', 'Inicia com A', 'Inicia com B', 'Inicia com C', 'Inicia com Novo(a)'];
+        const extraCount = [...cluesHorizontal, ...cluesVertical].filter(c => extraCategories.includes(c)).length;
+        
+        if (extraCount > 1) {
+            return null; // Rejeitar: mais de uma categoria extra
+        }
+
+        return {
+            id: this.generatePuzzleId(),
+            date: new Date().toISOString().split('T')[0],
+            cluesHorizontal,
+            cluesVertical,
+            answers,
+            validMunicipalities,
+            rarities,
+            seed
+        };
+    }
+
+    /**
+     * Encontra municípios que satisfazem AMBAS as pistas
+     */
+    findValidMunicipalities(horizontalClue, verticalClue) {
+        const horizontalMunis = new Set(this.characteristicsIndex[horizontalClue] || []);
+        const verticalMunis = new Set(this.characteristicsIndex[verticalClue] || []);
+
+        // Interseção: municípios que têm AMBAS as características
+        const valid = [];
+        horizontalMunis.forEach(mun => {
+            if (verticalMunis.has(mun)) {
+                valid.push(mun);
+            }
+        });
+
+        return valid;
+    }
+
+    /**
+     * Valida se um puzzle é válido
+     */
+    isValidPuzzle(puzzle) {
+        if (!puzzle) return false;
+        if (!puzzle.validMunicipalities) return false;
+        if (!puzzle.cluesHorizontal || puzzle.cluesHorizontal.length !== 3) return false;
+        if (!puzzle.cluesVertical || puzzle.cluesVertical.length !== 3) return false;
+
+        // Verificar se todas as células têm pelo menos 1 município válido
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                if (!puzzle.validMunicipalities[row][col] || puzzle.validMunicipalities[row][col].length === 0) {
+                    return false;
+                }
+            }
+        }
+
         return true;
-    } catch (e) {
-        console.error('Erro ao salvar no localStorage:', e);
-        return false;
     }
-}
 
-/**
- * Carrega dados do localStorage
- */
-function loadFromStorage(key, defaultValue = null) {
-    try {
-        const data = localStorage.getItem(key);
-        return data ? JSON.parse(data) : defaultValue;
-    } catch (e) {
-        console.error('Erro ao carregar do localStorage:', e);
-        return defaultValue;
+    /**
+     * Cria um puzzle vazio (fallback)
+     */
+    createEmptyPuzzle(seed) {
+        return {
+            id: this.generatePuzzleId(),
+            date: new Date().toISOString().split('T')[0],
+            cluesHorizontal: ['Carregando...', 'Carregando...', 'Carregando...'],
+            cluesVertical: ['Carregando...', 'Carregando...', 'Carregando...'],
+            answers: [
+                ['N/A', 'N/A', 'N/A'],
+                ['N/A', 'N/A', 'N/A'],
+                ['N/A', 'N/A', 'N/A']
+            ],
+            validMunicipalities: [
+                [[], [], []],
+                [[], [], []],
+                [[], [], []]
+            ],
+            rarities: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0]
+            ],
+            seed
+        };
     }
-}
 
-/**
- * Remove dados do localStorage
- */
-function removeFromStorage(key) {
-    try {
-        localStorage.removeItem(key);
-        return true;
-    } catch (e) {
-        console.error('Erro ao remover do localStorage:', e);
-        return false;
+    /**
+     * Gera ID do puzzle baseado na data
+     */
+    generatePuzzleId() {
+        const today = new Date();
+        return today.getFullYear().toString() + 
+               String(today.getMonth() + 1).padStart(2, '0') + 
+               String(today.getDate()).padStart(2, '0');
     }
-}
 
-// ===== FUNÇÕES DE NOTIFICAÇÃO =====
-
-/**
- * Mostra uma notificação temporária
- */
-function showNotification(message, type = 'info', duration = 3000) {
-    const notification = createElement('div', ['notification', type], {
-        text: message
-    });
-    
-    document.body.appendChild(notification);
-    
-    setTimeout(() => {
-        notification.classList.add('animate-slide-out');
-        setTimeout(() => {
-            notification.remove();
-        }, 300);
-    }, duration);
-}
-
-/**
- * Mostra um status no jogo
- */
-function showGameStatus(message, type = 'info') {
-    const statusEl = $('#game-status');
-    statusEl.textContent = message;
-    statusEl.className = `game-status ${type}`;
-    statusEl.classList.remove('hidden');
-    
-    setTimeout(() => {
-        statusEl.classList.add('hidden');
-    }, 3000);
-}
-
-// ===== FUNÇÕES DE VALIDAÇÃO =====
-
-/**
- * Valida se uma string está vazia
- */
-function isEmpty(str) {
-    return !str || str.trim().length === 0;
-}
-
-/**
- * Valida se um valor é um número
- */
-function isNumber(value) {
-    return !isNaN(parseFloat(value)) && isFinite(value);
-}
-
-/**
- * Valida se um valor é um objeto
- */
-function isObject(value) {
-    return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-/**
- * Valida se um valor é um array
- */
-function isArray(value) {
-    return Array.isArray(value);
-}
-
-// ===== FUNÇÕES DE ARRAY =====
-
-/**
- * Embaralha um array
- */
-function shuffleArray(array) {
-    const arr = [...array];
-    for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
+    /**
+     * Obtém seed da data
+     */
+    getSeedFromDate(date) {
+        return date.getFullYear() * 10000 + 
+               (date.getMonth() + 1) * 100 + 
+               date.getDate();
     }
-    return arr;
-}
 
-/**
- * Seleciona um elemento aleatório de um array
- */
-function randomElement(array) {
-    return array[Math.floor(Math.random() * array.length)];
-}
-
-/**
- * Remove duplicatas de um array
- */
-function removeDuplicates(array) {
-    return [...new Set(array)];
-}
-
-/**
- * Filtra um array por uma propriedade
- */
-function filterByProperty(array, property, value) {
-    return array.filter(item => item[property] === value);
-}
-
-// ===== FUNÇÕES DE DELAY =====
-
-/**
- * Aguarda um tempo específico
- */
-function delay(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-/**
- * Executa uma função após um delay
- */
-function delayedExecution(fn, ms) {
-    return setTimeout(fn, ms);
-}
-
-// ===== FUNÇÕES DE COMPARTILHAMENTO =====
-
-/**
- * Copia texto para a área de transferência
- */
-function copyToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-        return navigator.clipboard.writeText(text);
-    } else {
-        // Fallback para navegadores antigos
-        const textArea = document.createElement('textarea');
-        textArea.value = text;
-        document.body.appendChild(textArea);
-        textArea.select();
-        document.execCommand('copy');
-        document.body.removeChild(textArea);
-        return Promise.resolve();
+    /**
+     * Cria um gerador de números aleatórios com seed
+     */
+    createSeededRNG(seed) {
+        return function() {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
     }
-}
-
-/**
- * Compartilha via Web Share API se disponível
- */
-function shareContent(data) {
-    if (navigator.share) {
-        return navigator.share(data);
-    } else {
-        // Fallback: copiar para clipboard
-        return copyToClipboard(data.text);
-    }
-}
-
-// ===== FUNÇÕES DE BANDEIRA =====
-
-/**
- * Obtém a bandeira de um estado (usando emoji de estado dos EUA como referência)
- * Para municípios, usaremos a bandeira do RS
- */
-function getMunicipalityFlag() {
-    // Retorna a bandeira do Rio Grande do Sul
-    return '🏳️';
-}
-
-/**
- * Mapa de emojis para municipios gauchos
- */
-const MUNICIPALITY_EMOJIS = {
-    'Porto Alegre': '🏛️',
-    'Canoas': '🏭',
-    'Novo Hamburgo': '👟',
-    'Caxias do Sul': '🍇',
-    'Pelotas': '🍑',
-    'Santa Maria': '📚',
-    'Gramado': '🏔️',
-    'Canela': '🌲',
-    'Bento Goncalves': '🍷',
-    'Garibaldi': '🍷',
-    'Sapucaia do Sul': '🏭',
-    'Viam': '🌾',
-    'Alvorada': '🌅',
-    'Gravata': '⛰️',
-    'Cachoerinha': '💧',
-    'Esteio': '🏭',
-    'Taquara': '🌲',
-    'Igrejinha': '⛪',
-    'Torres': '🏖️',
-    'Tramandai': '🏖️',
-    'Capao da Canoa': '🏖️',
-    'Osorio': '🏖️',
-    'Arvorezinha': '🌲',
-    'Jaguarao': '🐆',
-    'Rio Grande': '⚓',
-    'Santana do Livramento': '🐴',
-    'Bage': '🐴',
-    'Uruguaiana': '🐴',
-    'Santo Angelo': '⛪',
-    'Cruz Alta': '🌾',
-    'Passo Fundo': '🌾',
-    'Erechim': '🌾',
-    'Frederico Westphalen': '🌲',
-    'Tres Passos': '🌾',
-    'Soledade': '🌾',
-    'Guapore': '🌾',
-    'Getulio Vargas': '🌾',
-    'Vacaria': '🌲',
-    'Lagoa Vermelha': '🌾',
-    'Bom Jesus': '⛰️',
-    'Cambara do Sul': '⛰️',
-    'Sao Francisco de Paula': '🌲',
-    'Jaquirana': '❄️'
-};
-
-/**
- * Obtem o emoji de um municipio
- */
-function getMunicipalityEmoji(municipalityName) {
-    // Procurar no mapa de emojis
-    if (MUNICIPALITY_EMOJIS[municipalityName]) {
-        return MUNICIPALITY_EMOJIS[municipalityName];
-    }
-    
-    // Fallback: retornar emoji generico baseado na primeira letra
-    const firstLetter = municipalityName.charAt(0).toUpperCase();
-    const emojiMap = {
-        'A': '🅰️', 'B': '🅱️', 'C': '©️', 'D': '🆃', 'E': '🅴', 'F': '🅵',
-        'G': '🅶', 'H': '🅷', 'I': 'ℹ️', 'J': '🅹', 'K': '🅺', 'L': '🅻',
-        'M': 'Ⓜ️', 'N': '🅽', 'O': '⭕', 'P': '🅿️', 'Q': '🆀', 'R': '🆁',
-        'S': '🆂', 'T': '🆃', 'U': '🆄', 'V': '🆅', 'W': '🆆', 'X': '❌',
-        'Y': '🆈', 'Z': '🆉'
-    };
-    
-    return emojiMap[firstLetter] || '📍';
-}
-
-// ===== DEBUG =====
-
-/**
- * Log com timestamp
- */
-function debugLog(message, data = null) {
-    const timestamp = new Date().toLocaleTimeString('pt-BR');
-    console.log(`[${timestamp}] ${message}`, data || '');
-}
-
-/**
- * Log de erro com timestamp
- */
-function debugError(message, error = null) {
-    const timestamp = new Date().toLocaleTimeString('pt-BR');
-    console.error(`[${timestamp}] ERRO: ${message}`, error || '');
 }

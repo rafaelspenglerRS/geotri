@@ -1,264 +1,149 @@
 /**
- * GERADOR DE PUZZLES - GEO TRI
+ * GERENCIAMENTO DE ESTADO DO JOGO
  */
 
-class PuzzleGenerator {
-    constructor(municipalities) {
-        this.municipalities = municipalities;
-        this.buildCharacteristicsIndex();
-        this.precomputeValidCombinations();
+class GameState {
+    constructor(puzzle) {
+        this.puzzle = puzzle;
+        this.score = 900;
+        this.guessesLeft = 9;
+        this.filled = new Map(); // key: "row,col", value: {municipality, rarity}
+        this.history = [];
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.isGameWon = false;
     }
 
     /**
-     * Constrói um índice de características para busca rápida
+     * Adiciona um palpite ao histórico
      */
-    buildCharacteristicsIndex() {
-        this.characteristicsIndex = {};
-        
-        this.municipalities.forEach(mun => {
-            mun.characteristics.forEach(char => {
-                if (!this.characteristicsIndex[char]) {
-                    this.characteristicsIndex[char] = [];
-                }
-                this.characteristicsIndex[char].push(mun.name);
+    addGuess(row, col, municipality, isCorrect) {
+        const guess = {
+            row,
+            col,
+            municipality,
+            isCorrect,
+            timestamp: Date.now()
+        };
+
+        this.history.push(guess);
+
+        if (isCorrect) {
+            this.filled.set(`${row},${col}`, {
+                municipality: municipality,
+                rarity: this.puzzle.rarities[row][col] || 50
             });
-        });
+            this.updateScore(municipality, row, col);
+            this.checkGameWon();
+        } else {
+            this.guessesLeft--;
+            if (this.guessesLeft <= 0) {
+                this.isGameOver = true;
+            }
+        }
     }
 
     /**
-     * Pré-calcula todas as combinações válidas de pistas
-     * Isso garante que temos combinações que funcionam
+     * Atualiza a pontuação
      */
-    precomputeValidCombinations() {
-        this.validCombinations = []; // Array de {h: clue, v: clue, valid: [municípios]}
-        const allCharacteristics = Object.keys(this.characteristicsIndex);
-        
-        for (let i = 0; i < allCharacteristics.length; i++) {
-            for (let j = 0; j < allCharacteristics.length; j++) {
-                if (i !== j) {
-                    const h = allCharacteristics[i];
-                    const v = allCharacteristics[j];
-                    const valid = this.findValidMunicipalities(h, v);
-                    
-                    if (valid.length > 0) {
-                        this.validCombinations.push({
-                            h: h,
-                            v: v,
-                            valid: valid
-                        });
-                    }
-                }
-            }
-        }
-        
-        debugLog(`Pré-computadas ${this.validCombinations.length} combinações válidas`);
+    updateScore(municipality, row, col) {
+        const rarity = this.puzzle.rarities[row][col] || 50;
+        const penalty = (rarity / 100) * 900;
+        this.score = Math.max(0, this.score - penalty);
     }
 
     /**
-     * Gera um puzzle diário determinístico
+     * Verifica se o jogo foi vencido
      */
-    generateDailyPuzzle() {
-        const today = new Date();
-        const seed = this.getSeedFromDate(today);
-        
-        // Tentar gerar puzzle válido (máximo 50 tentativas)
-        for (let attempt = 0; attempt < 50; attempt++) {
-            const puzzle = this.generatePuzzle(seed + attempt);
-            if (puzzle && this.isValidPuzzle(puzzle)) {
-                debugLog('Puzzle gerado com sucesso', { seed: seed + attempt, attempt });
-                return puzzle;
-            }
+    checkGameWon() {
+        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
+        if (this.filled.size === totalCells) {
+            this.isGameWon = true;
         }
-
-        // Se não conseguir, retornar puzzle vazio
-        debugError('Não foi possível gerar um puzzle válido após 50 tentativas');
-        return this.createEmptyPuzzle(seed);
     }
 
     /**
-     * Gera um puzzle a partir de um seed
-     * ESTRATÉGIA: Seleciona 9 combinações válidas aleatoriamente
+     * Verifica se uma célula já foi preenchida
      */
-    generatePuzzle(seed) {
-        if (this.validCombinations.length < 9) {
-            return null; // Não há combinações suficientes
-        }
+    isCellFilled(row, col) {
+        return this.filled.has(`${row},${col}`);
+    }
 
-        const rng = this.createSeededRNG(seed);
+    /**
+     * Obtém o município preenchido em uma célula
+     */
+    getFilledMunicipality(row, col) {
+        const filled = this.filled.get(`${row},${col}`);
+        return filled ? filled.municipality : null;
+    }
 
-        // Selecionar 9 combinações válidas aleatoriamente
-        const selected = [];
-        const used = new Set();
-        const maxAttempts = 1000;
-        let attempts = 0;
-
-        while (selected.length < 9 && attempts < maxAttempts) {
-            const randomIndex = Math.floor(rng() * this.validCombinations.length);
-            const combination = this.validCombinations[randomIndex];
-            const key = `${combination.h}|${combination.v}`;
-
-            if (!used.has(key)) {
-                selected.push(combination);
-                used.add(key);
-            }
-
-            attempts++;
-        }
-
-        if (selected.length < 9) {
-            return null; // Não conseguiu selecionar 9 combinações únicas
-        }
-
-        // Reorganizar em grid 3x3
-        const cluesHorizontal = [];
-        const cluesVertical = [];
-        const answers = [];
-        const validMunicipalities = [];
-        const rarities = [];
-
-        for (let row = 0; row < 3; row++) {
-            answers[row] = [];
-            validMunicipalities[row] = [];
-            rarities[row] = [];
-
-            for (let col = 0; col < 3; col++) {
-                const index = row * 3 + col;
-                const combination = selected[index];
-
-                // Armazenar pistas
-                if (col === 0) {
-                    cluesVertical[row] = combination.v;
-                }
-                if (row === 0) {
-                    cluesHorizontal[col] = combination.h;
-                }
-
-                // Armazenar respostas
-                validMunicipalities[row][col] = combination.valid;
-
-                // Selecionar um como "resposta principal"
-                const selectedIndex = Math.floor(rng() * combination.valid.length);
-                answers[row][col] = combination.valid[selectedIndex];
-
-                // Calcular raridade
-                const percentage = (combination.valid.length / this.municipalities.length) * 100;
-                rarities[row][col] = Math.round(percentage * 10) / 10;
-            }
-        }
-
-        // Verificar restrição de categorias extras
-        const extraCategories = ['Contém Santo(a)', 'Inicia com A', 'Inicia com B', 'Inicia com C', 'Inicia com Novo(a)'];
-        const extraCount = [...cluesHorizontal, ...cluesVertical].filter(c => extraCategories.includes(c)).length;
-        
-        if (extraCount > 1) {
-            return null; // Rejeitar: mais de uma categoria extra
-        }
-
+    /**
+     * Retorna o estado do jogo como JSON
+     */
+    toJSON() {
         return {
-            id: this.generatePuzzleId(),
-            date: new Date().toISOString().split('T')[0],
-            cluesHorizontal,
-            cluesVertical,
-            answers,
-            validMunicipalities,
-            rarities,
-            seed
+            score: this.score,
+            guessesLeft: this.guessesLeft,
+            filled: Array.from(this.filled.entries()),
+            history: this.history,
+            isGameOver: this.isGameOver,
+            isGameWon: this.isGameWon,
+            startTime: this.startTime
         };
     }
 
     /**
-     * Encontra municípios que satisfazem AMBAS as pistas
+     * Carrega o estado do jogo a partir de JSON
      */
-    findValidMunicipalities(horizontalClue, verticalClue) {
-        const horizontalMunis = new Set(this.characteristicsIndex[horizontalClue] || []);
-        const verticalMunis = new Set(this.characteristicsIndex[verticalClue] || []);
-
-        // Interseção: municípios que têm AMBAS as características
-        const valid = [];
-        horizontalMunis.forEach(mun => {
-            if (verticalMunis.has(mun)) {
-                valid.push(mun);
-            }
-        });
-
-        return valid;
+    fromJSON(data) {
+        this.score = data.score || 900;
+        this.guessesLeft = data.guessesLeft || 9;
+        this.filled = new Map(data.filled || []);
+        this.history = data.history || [];
+        this.isGameOver = data.isGameOver || false;
+        this.isGameWon = data.isGameWon || false;
+        this.startTime = data.startTime || Date.now();
     }
 
     /**
-     * Valida se um puzzle é válido
+     * Reseta o estado do jogo
      */
-    isValidPuzzle(puzzle) {
-        if (!puzzle) return false;
-        if (!puzzle.validMunicipalities) return false;
-        if (!puzzle.cluesHorizontal || puzzle.cluesHorizontal.length !== 3) return false;
-        if (!puzzle.cluesVertical || puzzle.cluesVertical.length !== 3) return false;
-
-        // Verificar se todas as células têm pelo menos 1 município válido
-        for (let row = 0; row < 3; row++) {
-            for (let col = 0; col < 3; col++) {
-                if (!puzzle.validMunicipalities[row][col] || puzzle.validMunicipalities[row][col].length === 0) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
+    reset() {
+        this.score = 900;
+        this.guessesLeft = 9;
+        this.filled.clear();
+        this.history = [];
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.isGameWon = false;
     }
 
     /**
-     * Cria um puzzle vazio (fallback)
+     * Retorna o tempo decorrido em segundos
      */
-    createEmptyPuzzle(seed) {
-        return {
-            id: this.generatePuzzleId(),
-            date: new Date().toISOString().split('T')[0],
-            cluesHorizontal: ['Carregando...', 'Carregando...', 'Carregando...'],
-            cluesVertical: ['Carregando...', 'Carregando...', 'Carregando...'],
-            answers: [
-                ['N/A', 'N/A', 'N/A'],
-                ['N/A', 'N/A', 'N/A'],
-                ['N/A', 'N/A', 'N/A']
-            ],
-            validMunicipalities: [
-                [[], [], []],
-                [[], [], []],
-                [[], [], []]
-            ],
-            rarities: [
-                [0, 0, 0],
-                [0, 0, 0],
-                [0, 0, 0]
-            ],
-            seed
-        };
+    getElapsedTime() {
+        return Math.floor((Date.now() - this.startTime) / 1000);
     }
 
     /**
-     * Gera ID do puzzle baseado na data
+     * Retorna o número de acertos
      */
-    generatePuzzleId() {
-        const today = new Date();
-        return today.getFullYear().toString() + 
-               String(today.getMonth() + 1).padStart(2, '0') + 
-               String(today.getDate()).padStart(2, '0');
+    getCorrectGuesses() {
+        return this.filled.size;
     }
 
     /**
-     * Obtém seed da data
+     * Retorna o número de tentativas usadas
      */
-    getSeedFromDate(date) {
-        return date.getFullYear() * 10000 + 
-               (date.getMonth() + 1) * 100 + 
-               date.getDate();
+    getUsedGuesses() {
+        return 9 - this.guessesLeft;
     }
 
     /**
-     * Cria um gerador de números aleatórios com seed
+     * Retorna o percentual de células preenchidas
      */
-    createSeededRNG(seed) {
-        return function() {
-            seed = (seed * 9301 + 49297) % 233280;
-            return seed / 233280;
-        };
+    getCompletionPercentage() {
+        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
+        return Math.round((this.filled.size / totalCells) * 100);
     }
 }

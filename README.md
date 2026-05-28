@@ -1,140 +1,190 @@
-# 🗺️ Geo TRI - Puzzle Diário de Cidades Gaúchas
+/**
+ * GERENCIAMENTO DE PERSISTÊNCIA
+ */
 
-Um jogo de puzzle interativo que desafia você a identificar municípios do Rio Grande do Sul com base em pistas geográficas e características específicas.
+class GamePersistence {
+    static STORAGE_KEY_PREFIX = 'geotri_';
 
-## 🎮 Como Jogar
+    /**
+     * Gera a chave de armazenamento para um puzzle específico
+     */
+    static getStorageKey(puzzleId) {
+        const today = new Date().toISOString().split('T')[0];
+        return `${this.STORAGE_KEY_PREFIX}${puzzleId}_${today}`;
+    }
 
-1. **Observe as pistas**: 3 pistas horizontais (topo) e 3 verticais (esquerda)
-2. **Clique em uma célula vazia**: Um modal abrirá mostrando as duas pistas que você precisa satisfazer
-3. **Digite o nome do município**: Que satisfaça AMBAS as pistas simultaneamente
-4. **Acerte para ganhar pontos**: Municípios mais raros valem mais pontos
-5. **Você tem 9 tentativas**: Use-as com sabedoria!
+    /**
+     * Salva o estado do jogo
+     */
+    static saveGame(gameState, puzzleId) {
+        try {
+            const key = this.getStorageKey(puzzleId);
+            const data = gameState.toJSON();
+            saveToStorage(key, data);
+            debugLog('Jogo salvo com sucesso', { key, puzzleId });
+            return true;
+        } catch (e) {
+            debugError('Erro ao salvar jogo', e);
+            return false;
+        }
+    }
 
-## 🏆 Sistema de Pontuação
+    /**
+     * Carrega o estado do jogo
+     */
+    static loadGame(gameState, puzzleId) {
+        try {
+            const key = this.getStorageKey(puzzleId);
+            const data = loadFromStorage(key);
+            
+            if (data) {
+                gameState.fromJSON(data);
+                debugLog('Jogo carregado com sucesso', { key, puzzleId });
+                return true;
+            }
+            
+            return false;
+        } catch (e) {
+            debugError('Erro ao carregar jogo', e);
+            return false;
+        }
+    }
 
-- **Começa com**: 900 pontos
-- **Penalidade**: Baseada na raridade da resposta
-- **Municípios comuns**: Penalizam mais (menos pontos)
-- **Municípios raros**: Penalizam menos (mais pontos)
+    /**
+     * Verifica se existe um jogo salvo para hoje
+     */
+    static hasGameToday(puzzleId) {
+        const key = this.getStorageKey(puzzleId);
+        return loadFromStorage(key) !== null;
+    }
 
-## 📱 Características
+    /**
+     * Limpa o jogo salvo
+     */
+    static clearGame(puzzleId) {
+        try {
+            const key = this.getStorageKey(puzzleId);
+            removeFromStorage(key);
+            debugLog('Jogo limpo com sucesso', { key, puzzleId });
+            return true;
+        } catch (e) {
+            debugError('Erro ao limpar jogo', e);
+            return false;
+        }
+    }
 
-- ✅ Responsivo (funciona em desktop, tablet e mobile)
-- ✅ Sem dependências externas (JavaScript puro)
-- ✅ Persistência local (continua de onde parou)
-- ✅ Puzzle diário (mesmo puzzle para todos no mesmo dia)
-- ✅ 497 municípios gaúchos
-- ✅ Múltiplas categorias de características
+    /**
+     * Salva o histórico de jogos
+     */
+    static saveGameHistory(history) {
+        try {
+            const key = `${this.STORAGE_KEY_PREFIX}history`;
+            saveToStorage(key, history);
+            debugLog('Histórico salvo com sucesso');
+            return true;
+        } catch (e) {
+            debugError('Erro ao salvar histórico', e);
+            return false;
+        }
+    }
 
-## 🚀 Como Usar
+    /**
+     * Carrega o histórico de jogos
+     */
+    static loadGameHistory() {
+        try {
+            const key = `${this.STORAGE_KEY_PREFIX}history`;
+            return loadFromStorage(key, []);
+        } catch (e) {
+            debugError('Erro ao carregar histórico', e);
+            return [];
+        }
+    }
 
-### Localmente
-```bash
-# Navegar até a pasta
-cd /home/ubuntu/geotri
+    /**
+     * Adiciona um jogo ao histórico
+     */
+    static addToHistory(gameResult) {
+        try {
+            const history = this.loadGameHistory();
+            history.push({
+                ...gameResult,
+                date: new Date().toISOString()
+            });
+            this.saveGameHistory(history);
+            debugLog('Jogo adicionado ao histórico');
+            return true;
+        } catch (e) {
+            debugError('Erro ao adicionar ao histórico', e);
+            return false;
+        }
+    }
 
-# Iniciar servidor (Python 3)
-python3 -m http.server 8080
+    /**
+     * Limpa o histórico antigo (mais de 30 dias)
+     */
+    static cleanOldHistory(daysToKeep = 30) {
+        try {
+            const history = this.loadGameHistory();
+            const cutoffDate = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000);
+            
+            const filtered = history.filter(item => {
+                const itemDate = new Date(item.date).getTime();
+                return itemDate > cutoffDate;
+            });
 
-# Abrir no navegador
-# http://localhost:8080
-```
+            this.saveGameHistory(filtered);
+            debugLog(`Histórico limpo. ${history.length - filtered.length} itens removidos`);
+            return true;
+        } catch (e) {
+            debugError('Erro ao limpar histórico', e);
+            return false;
+        }
+    }
 
-### Deploy
-Copie a pasta `geotri` para qualquer servidor web estático (GitHub Pages, Netlify, etc.)
+    /**
+     * Exporta o estado do jogo como string (para compartilhamento)
+     */
+    static exportGameState(gameState) {
+        try {
+            const data = gameState.toJSON();
+            return btoa(JSON.stringify(data)); // Base64 encode
+        } catch (e) {
+            debugError('Erro ao exportar estado do jogo', e);
+            return null;
+        }
+    }
 
-## 📂 Estrutura do Projeto
+    /**
+     * Importa o estado do jogo a partir de string
+     */
+    static importGameState(encodedState) {
+        try {
+            const data = JSON.parse(atob(encodedState)); // Base64 decode
+            return data;
+        } catch (e) {
+            debugError('Erro ao importar estado do jogo', e);
+            return null;
+        }
+    }
 
-```
-geotri/
-├── index.html              # Página principal
-├── css/                    # Estilos
-│   ├── main.css
-│   ├── grid.css
-│   ├── modal.css
-│   └── animations.css
-├── js/                     # Lógica
-│   ├── utils.js
-│   ├── game-state.js
-│   ├── puzzle-generator.js
-│   ├── renderer.js
-│   ├── validator.js
-│   ├── persistence.js
-│   └── main.js
-└── data/
-    └── municipalities.json # Base de dados
-```
-
-## 🔧 Tecnologias
-
-- **HTML5**: Estrutura semântica
-- **CSS3**: Grid, Flexbox, Animações
-- **JavaScript ES6+**: Vanilla (sem frameworks)
-- **localStorage**: Persistência local
-
-## 📊 Dados
-
-- **497 municípios** do Rio Grande do Sul
-- **11 características** principais
-- **28 regiões** (COREDEs)
-- **Categorias extras**: Santo(a), Primeira letra, Novo(a)
-
-## 🎯 Características Disponíveis
-
-### Geográficas
-- Fronteira com Argentina
-- Fronteira com Uruguai
-- Fronteira com Santa Catarina
-- Litorâneo
-
-### Regionais
-- COREDE (28 regiões)
-
-### Extras
-- Contém Santo(a)
-- Inicia com A/B/C
-- Inicia com Novo(a)
-
-## ⚙️ Configuração
-
-### Alterar Número de Tentativas
-Editar em `js/game-state.js`:
-```javascript
-this.guessesLeft = 9; // Alterar aqui
-```
-
-### Alterar Pontuação Inicial
-Editar em `js/game-state.js`:
-```javascript
-this.score = 900; // Alterar aqui
-```
-
-### Adicionar Novos Municípios
-Atualizar `data/municipalities.json` com nova estrutura
-
-## 🐛 Troubleshooting
-
-**Jogo não carrega?**
-- Verificar console (F12) para erros
-- Garantir que `data/municipalities.json` existe
-- Limpar cache do navegador
-
-**Dados não aparecem?**
-- Verificar se o servidor está servindo arquivos estáticos
-- Confirmar que CORS está habilitado (se necessário)
-
-**Progresso não salva?**
-- Verificar se localStorage está habilitado
-- Testar em modo privado/incógnito
-
-## 📝 Licença
-
-MIT - Sinta-se livre para usar e modificar!
-
-## 👨‍💻 Desenvolvido por
-
-Manus AI - 28 de maio de 2026
-
----
-
-**Divirta-se descobrindo os municípios gaúchos!** 🎉
+    /**
+     * Gera um resumo do jogo para compartilhamento
+     */
+    static generateShareText(gameState, puzzle) {
+        const score = Math.round(gameState.score);
+        const completion = gameState.getCompletionPercentage();
+        const elapsedTime = gameState.getElapsedTime();
+        
+        const minutes = Math.floor(elapsedTime / 60);
+        const seconds = elapsedTime % 60;
+        
+        let text = `🗺️ Geo TRI #${puzzle.id}\n`;
+        text += `📊 Pontuação: ${score}\n`;
+        text += `✅ Completado: ${completion}%\n`;
+        text += `⏱️ Tempo: ${minutes}m ${seconds}s\n`;
+        text += `\n🎮 Jogue em: https://geotri.example.com`;
+        
+        return text;
+    }
+}
