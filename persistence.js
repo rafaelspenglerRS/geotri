@@ -1,190 +1,169 @@
 /**
- * GERENCIAMENTO DE PERSISTÊNCIA
+ * RENDERIZADOR DO JOGO
  */
 
-class GamePersistence {
-    static STORAGE_KEY_PREFIX = 'geotri_';
-
-    /**
-     * Gera a chave de armazenamento para um puzzle específico
-     */
-    static getStorageKey(puzzleId) {
-        const today = new Date().toISOString().split('T')[0];
-        return `${this.STORAGE_KEY_PREFIX}${puzzleId}_${today}`;
+class GameRenderer {
+    constructor(puzzle, gameState) {
+        this.puzzle = puzzle;
+        this.gameState = gameState;
     }
 
     /**
-     * Salva o estado do jogo
+     * Renderiza o tabuleiro completo
      */
-    static saveGame(gameState, puzzleId) {
-        try {
-            const key = this.getStorageKey(puzzleId);
-            const data = gameState.toJSON();
-            saveToStorage(key, data);
-            debugLog('Jogo salvo com sucesso', { key, puzzleId });
-            return true;
-        } catch (e) {
-            debugError('Erro ao salvar jogo', e);
-            return false;
-        }
+    renderBoard() {
+        this.renderClues();
+        this.renderGrid();
+        this.updateScoreDisplay();
+        this.updateGuessesDisplay();
+        this.updateBoardInfo();
     }
 
     /**
-     * Carrega o estado do jogo
+     * Renderiza as pistas
      */
-    static loadGame(gameState, puzzleId) {
-        try {
-            const key = this.getStorageKey(puzzleId);
-            const data = loadFromStorage(key);
-            
-            if (data) {
-                gameState.fromJSON(data);
-                debugLog('Jogo carregado com sucesso', { key, puzzleId });
-                return true;
+    renderClues() {
+        // Pistas Horizontais
+        this.puzzle.cluesHorizontal.forEach((clue, index) => {
+            const el = $(`#clue-h-${index}`);
+            if (el) {
+                el.textContent = clue;
             }
-            
-            return false;
-        } catch (e) {
-            debugError('Erro ao carregar jogo', e);
-            return false;
+        });
+
+        // Pistas Verticais
+        this.puzzle.cluesVertical.forEach((clue, index) => {
+            const el = $(`#clue-v-${index}`);
+            if (el) {
+                el.textContent = clue;
+            }
+        });
+    }
+
+    /**
+     * Renderiza o grid 3x3
+     */
+    renderGrid() {
+        const gridEl = $('#grid');
+        gridEl.innerHTML = ''; // Limpar grid anterior
+
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                const cell = this.createCell(row, col);
+                gridEl.appendChild(cell);
+            }
         }
     }
 
     /**
-     * Verifica se existe um jogo salvo para hoje
+     * Cria uma célula do grid
      */
-    static hasGameToday(puzzleId) {
-        const key = this.getStorageKey(puzzleId);
-        return loadFromStorage(key) !== null;
-    }
+    createCell(row, col) {
+        const cell = createElement('div', ['cell'], {
+            id: `cell-${row}-${col}`
+        });
 
-    /**
-     * Limpa o jogo salvo
-     */
-    static clearGame(puzzleId) {
-        try {
-            const key = this.getStorageKey(puzzleId);
-            removeFromStorage(key);
-            debugLog('Jogo limpo com sucesso', { key, puzzleId });
-            return true;
-        } catch (e) {
-            debugError('Erro ao limpar jogo', e);
-            return false;
-        }
-    }
+        const isFilled = this.gameState.isCellFilled(row, col);
 
-    /**
-     * Salva o histórico de jogos
-     */
-    static saveGameHistory(history) {
-        try {
-            const key = `${this.STORAGE_KEY_PREFIX}history`;
-            saveToStorage(key, history);
-            debugLog('Histórico salvo com sucesso');
-            return true;
-        } catch (e) {
-            debugError('Erro ao salvar histórico', e);
-            return false;
-        }
-    }
-
-    /**
-     * Carrega o histórico de jogos
-     */
-    static loadGameHistory() {
-        try {
-            const key = `${this.STORAGE_KEY_PREFIX}history`;
-            return loadFromStorage(key, []);
-        } catch (e) {
-            debugError('Erro ao carregar histórico', e);
-            return [];
-        }
-    }
-
-    /**
-     * Adiciona um jogo ao histórico
-     */
-    static addToHistory(gameResult) {
-        try {
-            const history = this.loadGameHistory();
-            history.push({
-                ...gameResult,
-                date: new Date().toISOString()
+        if (isFilled) {
+            const municipality = this.gameState.getFilledMunicipality(row, col);
+            this.fillCell(cell, municipality);
+        } else {
+            const emptyIcon = createElement('div', ['cell-empty'], {
+                text: '+'
             });
-            this.saveGameHistory(history);
-            debugLog('Jogo adicionado ao histórico');
-            return true;
-        } catch (e) {
-            debugError('Erro ao adicionar ao histórico', e);
-            return false;
-        }
-    }
-
-    /**
-     * Limpa o histórico antigo (mais de 30 dias)
-     */
-    static cleanOldHistory(daysToKeep = 30) {
-        try {
-            const history = this.loadGameHistory();
-            const cutoffDate = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000);
+            cell.appendChild(emptyIcon);
             
-            const filtered = history.filter(item => {
-                const itemDate = new Date(item.date).getTime();
-                return itemDate > cutoffDate;
+            // Adicionar listener de clique
+            cell.addEventListener('click', () => {
+                this.onCellClick(row, col);
             });
+        }
 
-            this.saveGameHistory(filtered);
-            debugLog(`Histórico limpo. ${history.length - filtered.length} itens removidos`);
-            return true;
-        } catch (e) {
-            debugError('Erro ao limpar histórico', e);
-            return false;
+        return cell;
+    }
+
+    /**
+     * Preenche uma célula com um município
+     */
+    fillCell(cell, municipality) {
+        cell.classList.add('filled');
+        cell.innerHTML = '';
+
+        // Flag
+        const flag = createElement('div', ['cell-flag'], {
+            text: getMunicipalityEmoji(municipality)
+        });
+        cell.appendChild(flag);
+
+        // Nome do município
+        const name = createElement('div', ['cell-name'], {
+            text: municipality
+        });
+        cell.appendChild(name);
+
+        // Remover listener de clique
+        cell.removeEventListener('click', this.onCellClick);
+    }
+
+    /**
+     * Atualiza a exibição de pontuação
+     */
+    updateScoreDisplay() {
+        const scoreEl = $('#score');
+        if (scoreEl) {
+            scoreEl.textContent = Math.round(this.gameState.score);
         }
     }
 
     /**
-     * Exporta o estado do jogo como string (para compartilhamento)
+     * Atualiza a exibição de tentativas
      */
-    static exportGameState(gameState) {
-        try {
-            const data = gameState.toJSON();
-            return btoa(JSON.stringify(data)); // Base64 encode
-        } catch (e) {
-            debugError('Erro ao exportar estado do jogo', e);
-            return null;
+    updateGuessesDisplay() {
+        const guessesEl = $('#guesses');
+        if (guessesEl) {
+            const used = this.gameState.getUsedGuesses();
+            guessesEl.textContent = `${this.gameState.guessesLeft}/${used + this.gameState.guessesLeft}`;
         }
     }
 
     /**
-     * Importa o estado do jogo a partir de string
+     * Atualiza informações do tabuleiro
      */
-    static importGameState(encodedState) {
-        try {
-            const data = JSON.parse(atob(encodedState)); // Base64 decode
-            return data;
-        } catch (e) {
-            debugError('Erro ao importar estado do jogo', e);
-            return null;
+    updateBoardInfo() {
+        const boardNumberEl = $('#board-number');
+        const boardDateEl = $('#board-date');
+
+        if (boardNumberEl) {
+            boardNumberEl.textContent = `Puzzle #${this.puzzle.id}`;
+        }
+
+        if (boardDateEl) {
+            const date = new Date(this.puzzle.date);
+            boardDateEl.textContent = formatDate(date);
         }
     }
 
     /**
-     * Gera um resumo do jogo para compartilhamento
+     * Atualiza uma célula específica após um acerto
      */
-    static generateShareText(gameState, puzzle) {
-        const score = Math.round(gameState.score);
-        const completion = gameState.getCompletionPercentage();
-        const elapsedTime = gameState.getElapsedTime();
-        
-        const minutes = Math.floor(elapsedTime / 60);
-        const seconds = elapsedTime % 60;
-        
-        let text = `🗺️ Geo TRI #${puzzle.id}\n`;
-        text += `📊 Pontuação: ${score}\n`;
-        text += `✅ Completado: ${completion}%\n`;
-        text += `⏱️ Tempo: ${minutes}m ${seconds}s\n`;
-        text += `\n🎮 Jogue em: https://geotri.example.com`;
-        
-        return text;
+    updateCell(row, col, municipality) {
+        const cell = $(`#cell-${row}-${col}`);
+        if (cell) {
+            cell.classList.add('correct-animation');
+            
+            setTimeout(() => {
+                this.fillCell(cell, municipality);
+                this.updateScoreDisplay();
+                this.updateGuessesDisplay();
+            }, 300);
+        }
+    }
+
+    /**
+     * Callback para clique em célula
+     */
+    onCellClick(row, col) {
+        // Será implementado no main.js
     }
 }

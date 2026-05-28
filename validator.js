@@ -1,257 +1,264 @@
 /**
- * VALIDADOR DE RESPOSTAS
+ * GERADOR DE PUZZLES - GEO TRI
  */
 
-class AnswerValidator {
-    constructor(puzzle) {
-        this.puzzle = puzzle;
-        this.aliases = this.buildAliases();
+class PuzzleGenerator {
+    constructor(municipalities) {
+        this.municipalities = municipalities;
+        this.buildCharacteristicsIndex();
+        this.precomputeValidCombinations();
     }
 
     /**
-     * Constrói dicionário de aliases para municípios
+     * Constrói um índice de características para busca rápida
      */
-    buildAliases() {
-        const aliases = {};
+    buildCharacteristicsIndex() {
+        this.characteristicsIndex = {};
         
-        // Adicionar aliases comuns
-        const commonAliases = {
-            'Porto Alegre': ['POA', 'POA'],
-            'Santa Maria': ['SM'],
-            'Santa Cruz do Sul': ['SCS'],
-            'Rio Grande': ['RG'],
-            'Pelotas': ['PEL'],
-            'Caxias do Sul': ['CXS', 'Caxias'],
-            'Novo Hamburgo': ['NH'],
-            'São Leopoldo': ['SL'],
-            'Gravataí': ['Gravatai'],
-            'Canoas': ['CAN'],
-            'Viamão': ['Viamao'],
-            'Sapucaia do Sul': ['Sapucaia'],
-            'Alvorada': ['ALV'],
-            'Guaíba': ['Guaiba'],
-            'Cachoeirinha': ['Cachoerinha'],
-            'Esteio': ['EST'],
-            'São Jerônimo': ['São Jeronimo'],
-            'Taquara': ['TAQ'],
-            'Igrejinha': ['IGR'],
-            'Parobé': ['Parobe'],
-            'Montenegro': ['MON'],
-            'Sapucaia': ['Sapucaia do Sul'],
-            'Triunfo': ['TRI'],
-            'Estância Velha': ['EV'],
-            'Campo Bom': ['CB'],
-            'Dois Irmãos': ['DI'],
-            'Ivoti': ['IVO'],
-            'Araricá': ['Ararica'],
-            'Rolante': ['ROL'],
-            'Riozinho': ['RIO'],
-            'Morro Reuter': ['MR'],
-            'Presidente Lucena': ['PL'],
-            'Portão': ['POR'],
-            'Glorinha': ['GLO'],
-            'Teutônia': ['Teutonia'],
-            'Sertão': ['Sertao'],
-            'Soledade': ['SOL'],
-            'Arvorezinha': ['ARV'],
-            'Imigrante': ['IMI'],
-            'Anta Gorda': ['AG'],
-            'Muçum': ['Mucum'],
-            'Poço das Antas': ['Poco das Antas'],
-            'Barão': ['BAR'],
-            'Gramado': ['GRA'],
-            'Canela': ['CAN'],
-            'São Francisco de Paula': ['SFP'],
-            'Cambará do Sul': ['Cambara do Sul'],
-            'Jaquirana': ['JAQ'],
-            'Bom Jesus': ['BJ'],
-            'Vacaria': ['VAC'],
-            'Lagoa Vermelha': ['LV'],
-            'Passo Fundo': ['PF'],
-            'Marau': ['MAR'],
-            'Mato Castelhano': ['MC'],
-            'Pontão': ['Pontao'],
-            'Sananduva': ['SAN'],
-            'Ibiraiaras': ['IBR'],
-            'Getúlio Vargas': ['GV'],
-            'Seara': ['SEA'],
-            'Erechim': ['ERE'],
-            'Gaurama': ['GAU'],
-            'Estação': ['EST'],
-            'Machadinho': ['MAC'],
-            'Severiano de Almeida': ['SA'],
-            'Viadutos': ['VIA'],
-            'Barracão': ['BAR'],
-            'Alpestre': ['ALP'],
-            'Erval Seco': ['ES'],
-            'Três Passos': ['TP'],
-            'Crissiumal': ['CRI'],
-            'Tenório': ['TEN'],
-            'Humaitá': ['Humaita'],
-            'Roque Gonzales': ['RG'],
-            'Santo Ângelo': ['Santo Angelo'],
-            'Giruá': ['Girua'],
-            'Santo Rosa': ['SR'],
-            'Tucunduva': ['TUC'],
-            'Tiradentes do Sul': ['TS'],
-            'Doutor Maurício Cardoso': ['DMC'],
-            'Catuípe': ['CAT'],
-            'Joia': ['JOI'],
-            'Augusto Pestana': ['AP'],
-            'Panambi': ['PAN'],
-            'Passo Fundo': ['PF'],
-            'Sarandi': ['SAR'],
-            'Ajuricaba': ['AJU'],
-            'Mamoré': ['MAM'],
-            'Não-Me-Toque': ['NMT', 'Nao-Me-Toque'],
-            'Tapejara': ['TAP'],
-            'Espumoso': ['ESP'],
-            'Arroio do Meio': ['ADM'],
-            'Lajeado': ['LAJ'],
-            'Taquari': ['TAQ'],
-            'Encantado': ['ENC'],
-            'Roca Sales': ['RS'],
-            'Westfalia': ['WES'],
-            'Progresso': ['PRO'],
-            'Sete de Setembro': ['SS'],
-            'Imigrante': ['IMI'],
-            'Travesseiro': ['TRA'],
-            'Muçum': ['Mucum'],
-            'Poço das Antas': ['Poco das Antas'],
-            'Bom Retiro do Sul': ['BRS'],
-            'Forquetinha': ['FOR'],
-            'Cruzeiro do Sul': ['CDS'],
-            'Herveiras': ['HER'],
-            'Jacuí': ['JAC'],
-            'Marques de Souza': ['MDS'],
-            'Paverama': ['PAV'],
-            'Anta Gorda': ['AG'],
-            'Vespasiano Corrêa': ['VC'],
-            'Barão de Cotegipe': ['BC'],
-            'Aratiba': ['ARA'],
-            'Getúlio Vargas': ['GV'],
-            'Marcelino Ramos': ['MR'],
-            'Severiano de Almeida': ['SA'],
-            'Viadutos': ['VIA'],
-            'Barracão': ['BAR'],
-            'Alpestre': ['ALP'],
-            'Erval Seco': ['ES'],
-            'Três Passos': ['TP'],
-            'Crissiumal': ['CRI'],
-            'Tenório': ['TEN'],
-            'Humaitá': ['Humaita'],
-            'Roque Gonzales': ['RG'],
-            'Santo Ângelo': ['Santo Angelo'],
-            'Giruá': ['Girua'],
-            'Santo Rosa': ['SR'],
-            'Tucunduva': ['TUC'],
-            'Tiradentes do Sul': ['TS'],
-            'Doutor Maurício Cardoso': ['DMC'],
-            'Catuípe': ['CAT'],
-            'Joia': ['JOI'],
-            'Augusto Pestana': ['AP'],
-            'Panambi': ['PAN'],
-            'Passo Fundo': ['PF'],
-            'Sarandi': ['SAR'],
-            'Ajuricaba': ['AJU'],
-            'Mamoré': ['MAM'],
-            'Não-Me-Toque': ['NMT', 'Nao-Me-Toque'],
-            'Tapejara': ['TAP'],
-            'Espumoso': ['ESP'],
-            'Arroio do Meio': ['ADM'],
-            'Lajeado': ['LAJ'],
-            'Taquari': ['TAQ'],
-            'Encantado': ['ENC'],
-            'Roca Sales': ['RS'],
-            'Westfalia': ['WES'],
-            'Progresso': ['PRO'],
-            'Sete de Setembro': ['SS'],
-            'Imigrante': ['IMI'],
-            'Travesseiro': ['TRA'],
-            'Muçum': ['Mucum'],
-            'Poço das Antas': ['Poco das Antas'],
-            'Bom Retiro do Sul': ['BRS'],
-            'Forquetinha': ['FOR'],
-            'Cruzeiro do Sul': ['CDS'],
-            'Herveiras': ['HER'],
-            'Jacuí': ['JAC'],
-            'Marques de Souza': ['MDS'],
-            'Paverama': ['PAV'],
-            'Anta Gorda': ['AG'],
-            'Vespasiano Corrêa': ['VC']
-        };
-
-        // Construir mapa de aliases
-        Object.entries(commonAliases).forEach(([municipality, municipalityAliases]) => {
-            const normalized = normalizeMunicipalityName(municipality);
-            aliases[normalized] = municipalityAliases.map(a => normalizeMunicipalityName(a));
+        this.municipalities.forEach(mun => {
+            mun.characteristics.forEach(char => {
+                if (!this.characteristicsIndex[char]) {
+                    this.characteristicsIndex[char] = [];
+                }
+                this.characteristicsIndex[char].push(mun.name);
+            });
         });
-
-        return aliases;
     }
 
     /**
-     * Valida se um nome de município está correto para uma célula
+     * Pré-calcula todas as combinações válidas de pistas
+     * Isso garante que temos combinações que funcionam
      */
-    validateAnswer(row, col, userInput) {
-        if (isEmpty(userInput)) {
-            return {
-                isValid: false,
-                message: 'Digite o nome de um município'
-            };
+    precomputeValidCombinations() {
+        this.validCombinations = []; // Array de {h: clue, v: clue, valid: [municípios]}
+        const allCharacteristics = Object.keys(this.characteristicsIndex);
+        
+        for (let i = 0; i < allCharacteristics.length; i++) {
+            for (let j = 0; j < allCharacteristics.length; j++) {
+                if (i !== j) {
+                    const h = allCharacteristics[i];
+                    const v = allCharacteristics[j];
+                    const valid = this.findValidMunicipalities(h, v);
+                    
+                    if (valid.length > 0) {
+                        this.validCombinations.push({
+                            h: h,
+                            v: v,
+                            valid: valid
+                        });
+                    }
+                }
+            }
+        }
+        
+        debugLog(`Pré-computadas ${this.validCombinations.length} combinações válidas`);
+    }
+
+    /**
+     * Gera um puzzle diário determinístico
+     */
+    generateDailyPuzzle() {
+        const today = new Date();
+        const seed = this.getSeedFromDate(today);
+        
+        // Tentar gerar puzzle válido (máximo 50 tentativas)
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const puzzle = this.generatePuzzle(seed + attempt);
+            if (puzzle && this.isValidPuzzle(puzzle)) {
+                debugLog('Puzzle gerado com sucesso', { seed: seed + attempt, attempt });
+                return puzzle;
+            }
         }
 
-        const expectedMunicipality = this.puzzle.answers[row][col];
-        const normalized = normalizeMunicipalityName(userInput);
-        const expectedNormalized = normalizeMunicipalityName(expectedMunicipality);
+        // Se não conseguir, retornar puzzle vazio
+        debugError('Não foi possível gerar um puzzle válido após 50 tentativas');
+        return this.createEmptyPuzzle(seed);
+    }
 
-        // Comparação exata
-        if (normalized === expectedNormalized) {
-            return {
-                isValid: true,
-                municipality: expectedMunicipality,
-                message: `✓ Correto! ${expectedMunicipality}`
-            };
+    /**
+     * Gera um puzzle a partir de um seed
+     * ESTRATÉGIA: Seleciona 9 combinações válidas aleatoriamente
+     */
+    generatePuzzle(seed) {
+        if (this.validCombinations.length < 9) {
+            return null; // Não há combinações suficientes
         }
 
-        // Verificar aliases
-        const aliases = this.aliases[expectedNormalized] || [];
-        if (aliases.includes(normalized)) {
-            return {
-                isValid: true,
-                municipality: expectedMunicipality,
-                message: `✓ Correto! ${expectedMunicipality}`
-            };
+        const rng = this.createSeededRNG(seed);
+
+        // Selecionar 9 combinações válidas aleatoriamente
+        const selected = [];
+        const used = new Set();
+        const maxAttempts = 1000;
+        let attempts = 0;
+
+        while (selected.length < 9 && attempts < maxAttempts) {
+            const randomIndex = Math.floor(rng() * this.validCombinations.length);
+            const combination = this.validCombinations[randomIndex];
+            const key = `${combination.h}|${combination.v}`;
+
+            if (!used.has(key)) {
+                selected.push(combination);
+                used.add(key);
+            }
+
+            attempts++;
+        }
+
+        if (selected.length < 9) {
+            return null; // Não conseguiu selecionar 9 combinações únicas
+        }
+
+        // Reorganizar em grid 3x3
+        const cluesHorizontal = [];
+        const cluesVertical = [];
+        const answers = [];
+        const validMunicipalities = [];
+        const rarities = [];
+
+        for (let row = 0; row < 3; row++) {
+            answers[row] = [];
+            validMunicipalities[row] = [];
+            rarities[row] = [];
+
+            for (let col = 0; col < 3; col++) {
+                const index = row * 3 + col;
+                const combination = selected[index];
+
+                // Armazenar pistas
+                if (col === 0) {
+                    cluesVertical[row] = combination.v;
+                }
+                if (row === 0) {
+                    cluesHorizontal[col] = combination.h;
+                }
+
+                // Armazenar respostas
+                validMunicipalities[row][col] = combination.valid;
+
+                // Selecionar um como "resposta principal"
+                const selectedIndex = Math.floor(rng() * combination.valid.length);
+                answers[row][col] = combination.valid[selectedIndex];
+
+                // Calcular raridade
+                const percentage = (combination.valid.length / this.municipalities.length) * 100;
+                rarities[row][col] = Math.round(percentage * 10) / 10;
+            }
+        }
+
+        // Verificar restrição de categorias extras
+        const extraCategories = ['Contém Santo(a)', 'Inicia com A', 'Inicia com B', 'Inicia com C', 'Inicia com Novo(a)'];
+        const extraCount = [...cluesHorizontal, ...cluesVertical].filter(c => extraCategories.includes(c)).length;
+        
+        if (extraCount > 1) {
+            return null; // Rejeitar: mais de uma categoria extra
         }
 
         return {
-            isValid: false,
-            message: `✗ Essa combinação não funciona para ${expectedMunicipality}`
+            id: this.generatePuzzleId(),
+            date: new Date().toISOString().split('T')[0],
+            cluesHorizontal,
+            cluesVertical,
+            answers,
+            validMunicipalities,
+            rarities,
+            seed
         };
     }
 
     /**
-     * Encontra sugestões de municípios baseado na entrada do usuário
+     * Encontra municípios que satisfazem AMBAS as pistas
      */
-    getSuggestions(row, col, userInput) {
-        if (isEmpty(userInput)) {
-            return [];
-        }
+    findValidMunicipalities(horizontalClue, verticalClue) {
+        const horizontalMunis = new Set(this.characteristicsIndex[horizontalClue] || []);
+        const verticalMunis = new Set(this.characteristicsIndex[verticalClue] || []);
 
-        const horizontalClue = this.puzzle.cluesHorizontal[col];
-        const verticalClue = this.puzzle.cluesVertical[row];
-
-        // Filtrar municípios que satisfazem ambas as clues
-        const validMunicipalities = this.puzzle.validMunicipalities || [];
-
-        const normalized = normalizeMunicipalityName(userInput);
-
-        // Filtrar por entrada do usuário
-        const suggestions = validMunicipalities.filter(m => {
-            const mNormalized = normalizeMunicipalityName(m);
-            return mNormalized.includes(normalized);
+        // Interseção: municípios que têm AMBAS as características
+        const valid = [];
+        horizontalMunis.forEach(mun => {
+            if (verticalMunis.has(mun)) {
+                valid.push(mun);
+            }
         });
 
-        return suggestions.slice(0, 10); // Limitar a 10 sugestões
+        return valid;
+    }
+
+    /**
+     * Valida se um puzzle é válido
+     */
+    isValidPuzzle(puzzle) {
+        if (!puzzle) return false;
+        if (!puzzle.validMunicipalities) return false;
+        if (!puzzle.cluesHorizontal || puzzle.cluesHorizontal.length !== 3) return false;
+        if (!puzzle.cluesVertical || puzzle.cluesVertical.length !== 3) return false;
+
+        // Verificar se todas as células têm pelo menos 1 município válido
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                if (!puzzle.validMunicipalities[row][col] || puzzle.validMunicipalities[row][col].length === 0) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Cria um puzzle vazio (fallback)
+     */
+    createEmptyPuzzle(seed) {
+        return {
+            id: this.generatePuzzleId(),
+            date: new Date().toISOString().split('T')[0],
+            cluesHorizontal: ['Carregando...', 'Carregando...', 'Carregando...'],
+            cluesVertical: ['Carregando...', 'Carregando...', 'Carregando...'],
+            answers: [
+                ['N/A', 'N/A', 'N/A'],
+                ['N/A', 'N/A', 'N/A'],
+                ['N/A', 'N/A', 'N/A']
+            ],
+            validMunicipalities: [
+                [[], [], []],
+                [[], [], []],
+                [[], [], []]
+            ],
+            rarities: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0]
+            ],
+            seed
+        };
+    }
+
+    /**
+     * Gera ID do puzzle baseado na data
+     */
+    generatePuzzleId() {
+        const today = new Date();
+        return today.getFullYear().toString() + 
+               String(today.getMonth() + 1).padStart(2, '0') + 
+               String(today.getDate()).padStart(2, '0');
+    }
+
+    /**
+     * Obtém seed da data
+     */
+    getSeedFromDate(date) {
+        return date.getFullYear() * 10000 + 
+               (date.getMonth() + 1) * 100 + 
+               date.getDate();
+    }
+
+    /**
+     * Cria um gerador de números aleatórios com seed
+     */
+    createSeededRNG(seed) {
+        return function() {
+            seed = (seed * 9301 + 49297) % 233280;
+            return seed / 233280;
+        };
     }
 }

@@ -1,140 +1,380 @@
-# 🗺️ Geo TRI - Puzzle Diário de Cidades Gaúchas
+/**
+ * ARQUIVO PRINCIPAL - GEO TRI
+ */
 
-Um jogo de puzzle interativo que desafia você a identificar municípios do Rio Grande do Sul com base em pistas geográficas e características específicas.
+let municipalities = [];
+let puzzle = null;
+let gameState = null;
+let renderer = null;
+let validator = null;
+let generator = null;
 
-## 🎮 Como Jogar
+let currentModalRow = null;
+let currentModalCol = null;
 
-1. **Observe as pistas**: 3 pistas horizontais (topo) e 3 verticais (esquerda)
-2. **Clique em uma célula vazia**: Um modal abrirá mostrando as duas pistas que você precisa satisfazer
-3. **Digite o nome do município**: Que satisfaça AMBAS as pistas simultaneamente
-4. **Acerte para ganhar pontos**: Municípios mais raros valem mais pontos
-5. **Você tem 9 tentativas**: Use-as com sabedoria!
+/**
+ * Inicializa o jogo
+ */
+async function initGame() {
+    try {
+        debugLog('Iniciando Geo TRI...');
+        
+        // Carregar dados de municípios
+        await loadMunicipalitiesData();
+        
+        // Inicializar gerador de puzzles
+        generator = new PuzzleGenerator(municipalities);
+        
+        // Gerar puzzle do dia
+        puzzle = generator.generateDailyPuzzle();
+        debugLog('Puzzle gerado', { id: puzzle.id, date: puzzle.date });
+        
+        // Inicializar estado do jogo
+        gameState = new GameState(puzzle);
+        
+        // Tentar carregar jogo salvo
+        const hasSavedGame = GamePersistence.hasGameToday(puzzle.id);
+        if (hasSavedGame) {
+            GamePersistence.loadGame(gameState, puzzle.id);
+            debugLog('Jogo salvo carregado');
+        }
+        
+        // Inicializar renderizador
+        renderer = new GameRenderer(puzzle, gameState);
+        
+        // Inicializar validador
+        validator = new AnswerValidator(puzzle);
+        
+        // Renderizar tabuleiro
+        renderer.renderBoard();
+        
+        // Configurar listeners
+        setupEventListeners();
+        
+        debugLog('Geo TRI iniciado com sucesso');
+    } catch (e) {
+        debugError('Erro ao iniciar jogo', e);
+        showNotification('Erro ao carregar o jogo. Tente recarregar a página.', 'error');
+    }
+}
 
-## 🏆 Sistema de Pontuação
+/**
+ * Carrega dados de municípios do JSON
+ */
+async function loadMunicipalitiesData() {
+    try {
+        // Detectar se está em GitHub Pages e ajustar caminho
+        let dataPath = 'data/municipalities.json';
+        if (window.location.hostname === 'rafaelspenglerrs.github.io') {
+            dataPath = '/geotri/data/municipalities.json';
+        }
+        
+        const response = await fetch(dataPath);
+        if (!response.ok) {
+            throw new Error(`Erro HTTP: ${response.status} ao carregar ${dataPath}`);
+        }
+        
+        const data = await response.json();
+        municipalities = data.municipalities || [];
+        debugLog(`${municipalities.length} municípios carregados`);
+        
+        if (municipalities.length === 0) {
+            throw new Error('Nenhum município foi carregado do arquivo JSON');
+        }
+    } catch (e) {
+        debugError('Erro ao carregar dados de municípios', e);
+        showNotification(`Erro ao carregar dados: ${e.message}`, 'error');
+        throw e;
+    }
+}
 
-- **Começa com**: 900 pontos
-- **Penalidade**: Baseada na raridade da resposta
-- **Municípios comuns**: Penalizam mais (menos pontos)
-- **Municípios raros**: Penalizam menos (mais pontos)
+/**
+ * Configura listeners de eventos
+ */
+function setupEventListeners() {
+    // Modal
+    const modalOverlay = $('#modal-overlay');
+    const modalClose = $('#modal-close');
+    const modalCancel = $('#modal-cancel');
+    const modalGuess = $('#modal-guess');
+    const searchInput = $('#search-input');
+    
+    if (modalClose) {
+        modalClose.addEventListener('click', closeModal);
+    }
+    
+    if (modalCancel) {
+        modalCancel.addEventListener('click', closeModal);
+    }
+    
+    if (modalOverlay) {
+        modalOverlay.addEventListener('click', closeModal);
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearchInput);
+        searchInput.addEventListener('keydown', handleSearchKeydown);
+    }
+    
+    if (modalGuess) {
+        modalGuess.addEventListener('click', handleGuess);
+    }
+    
+    // Botões de ação
+    const shareBtn = $('#share-btn');
+    const finishBtn = $('#finish-btn');
+    
+    if (shareBtn) {
+        shareBtn.addEventListener('click', handleShare);
+    }
+    
+    if (finishBtn) {
+        finishBtn.addEventListener('click', handleFinish);
+    }
+}
 
-## 📱 Características
+/**
+ * Abre o modal de busca para uma célula
+ */
+function openModal(row, col) {
+    currentModalRow = row;
+    currentModalCol = col;
+    
+    const modal = $('#search-modal');
+    const overlay = $('#modal-overlay');
+    const searchInput = $('#search-input');
+    const modalClueH = $('#modal-clue-h');
+    const modalClueV = $('#modal-clue-v');
+    
+    // Atualizar pistas
+    if (modalClueH) {
+        modalClueH.textContent = puzzle.cluesHorizontal[col];
+    }
+    
+    if (modalClueV) {
+        modalClueV.textContent = puzzle.cluesVertical[row];
+    }
+    
+    // Limpar input
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.focus();
+    }
+    
+    // Desabilitar botao de confirmação
+    const guessBtn = $('#modal-guess');
+    if (guessBtn) {
+        guessBtn.disabled = true;
+    }
+    
+    // Mostrar modal
+    if (modal) {
+        modal.classList.remove('hidden');
+    }
+    
+    if (overlay) {
+        overlay.classList.remove('hidden');
+    }
+    
+    // Limpar sugestões
+    const suggestionsEl = $('#suggestions');
+    if (suggestionsEl) {
+        suggestionsEl.innerHTML = '';
+    }
+}
 
-- ✅ Responsivo (funciona em desktop, tablet e mobile)
-- ✅ Sem dependências externas (JavaScript puro)
-- ✅ Persistência local (continua de onde parou)
-- ✅ Puzzle diário (mesmo puzzle para todos no mesmo dia)
-- ✅ 497 municípios gaúchos
-- ✅ Múltiplas categorias de características
+/**
+ * Fecha o modal de busca
+ */
+function closeModal() {
+    const modal = $('#search-modal');
+    const overlay = $('#modal-overlay');
+    
+    if (modal) {
+        modal.classList.add('hidden');
+    }
+    
+    if (overlay) {
+        overlay.classList.add('hidden');
+    }
+    
+    currentModalRow = null;
+    currentModalCol = null;
+}
 
-## 🚀 Como Usar
+/**
+ * Manipula entrada de busca
+ */
+function handleSearchInput(event) {
+    const input = event.target.value;
+    const suggestionsEl = $('#suggestions');
+    const guessBtn = $('#modal-guess');
+    
+    if (!suggestionsEl || currentModalRow === null || currentModalCol === null) {
+        return;
+    }
+    
+    // Habilitar/desabilitar botao baseado no input
+    if (guessBtn) {
+        guessBtn.disabled = isEmpty(input);
+    }
+    
+    if (isEmpty(input)) {
+        suggestionsEl.innerHTML = '';
+        return;
+    }
+    
+    // Aqui você poderia adicionar lógica de sugestões
+    // Por enquanto, deixaremos vazio
+    suggestionsEl.innerHTML = '';
+}
 
-### Localmente
-```bash
-# Navegar até a pasta
-cd /home/ubuntu/geotri
+/**
+ * Manipula tecla pressionada na busca
+ */
+function handleSearchKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        handleGuess();
+    }
+}
 
-# Iniciar servidor (Python 3)
-python3 -m http.server 8080
+/**
+ * Manipula o palpite
+ */
+function handleGuess() {
+    if (currentModalRow === null || currentModalCol === null) {
+        return;
+    }
+    
+    const searchInput = $('#search-input');
+    const userInput = searchInput.value;
+    
+    if (isEmpty(userInput)) {
+        showNotification('Digite o nome de um município', 'warning');
+        return;
+    }
+    
+    // Validar resposta
+    const result = validator.validateAnswer(currentModalRow, currentModalCol, userInput);
+    
+    if (result.isValid) {
+        // Acerto!
+        gameState.addGuess(currentModalRow, currentModalCol, result.municipality, true);
+        renderer.updateCell(currentModalRow, currentModalCol, result.municipality);
+        
+        showNotification(`✓ Correto! ${result.municipality}`, 'success');
+        
+        // Salvar progresso
+        GamePersistence.saveGame(gameState, puzzle.id);
+        
+        // Verificar se ganhou
+        if (gameState.isGameWon) {
+            setTimeout(() => {
+                showGameStatus('🎉 Você venceu! Parabéns!', 'success');
+                GamePersistence.addToHistory({
+                    puzzleId: puzzle.id,
+                    score: gameState.score,
+                    completion: 100,
+                    isWon: true
+                });
+            }, 500);
+        }
+        
+        closeModal();
+    } else {
+        // Erro!
+        gameState.addGuess(currentModalRow, currentModalCol, userInput, false);
+        renderer.updateGuessesDisplay();
+        
+        showNotification(result.message, 'error');
+        
+        // Salvar progresso
+        GamePersistence.saveGame(gameState, puzzle.id);
+        
+        // Verificar se perdeu
+        if (gameState.isGameOver) {
+            setTimeout(() => {
+                showGameStatus('💔 Fim de jogo! Tentativas esgotadas.', 'error');
+                GamePersistence.addToHistory({
+                    puzzleId: puzzle.id,
+                    score: gameState.score,
+                    completion: gameState.getCompletionPercentage(),
+                    isWon: false
+                });
+            }, 500);
+        }
+        
+        // Limpar input
+        searchInput.value = '';
+        searchInput.focus();
+    }
+}
 
-# Abrir no navegador
-# http://localhost:8080
-```
+/**
+ * Manipula compartilhamento
+ */
+function handleShare() {
+    const shareText = GamePersistence.generateShareText(gameState, puzzle);
+    
+    shareContent({
+        title: 'Geo TRI',
+        text: shareText,
+        url: window.location.href
+    }).then(() => {
+        showNotification('Compartilhado com sucesso!', 'success');
+    }).catch(err => {
+        // Fallback: copiar para clipboard
+        copyToClipboard(shareText).then(() => {
+            showNotification('Texto copiado para a área de transferência!', 'success');
+        });
+    });
+}
 
-### Deploy
-Copie a pasta `geotri` para qualquer servidor web estático (GitHub Pages, Netlify, etc.)
+/**
+ * Manipula revelação de solução
+ */
+function handleFinish() {
+    if (confirm('Tem certeza que deseja revelar a solução? Não poderá mais jogar hoje.')) {
+        // Revelar todas as células
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                if (!gameState.isCellFilled(row, col)) {
+                    const municipality = puzzle.answers[row][col];
+                    gameState.filled.set(`${row},${col}`, {
+                        municipality: municipality,
+                        rarity: puzzle.rarities[row][col]
+                    });
+                    renderer.updateCell(row, col, municipality);
+                }
+            }
+        }
+        
+        gameState.isGameOver = true;
+        GamePersistence.saveGame(gameState, puzzle.id);
+        showGameStatus('Solução revelada!', 'info');
+    }
+}
 
-## 📂 Estrutura do Projeto
+/**
+ * Callback para clique em célula (chamado pelo renderer)
+ */
+function onCellClickCallback(row, col) {
+    if (!gameState.isCellFilled(row, col) && !gameState.isGameOver && !gameState.isGameWon) {
+        openModal(row, col);
+    }
+}
 
-```
-geotri/
-├── index.html              # Página principal
-├── css/                    # Estilos
-│   ├── main.css
-│   ├── grid.css
-│   ├── modal.css
-│   └── animations.css
-├── js/                     # Lógica
-│   ├── utils.js
-│   ├── game-state.js
-│   ├── puzzle-generator.js
-│   ├── renderer.js
-│   ├── validator.js
-│   ├── persistence.js
-│   └── main.js
-└── data/
-    └── municipalities.json # Base de dados
-```
+// Sobrescrever o callback no renderer
+GameRenderer.prototype.onCellClick = function(row, col) {
+    onCellClickCallback(row, col);
+};
 
-## 🔧 Tecnologias
-
-- **HTML5**: Estrutura semântica
-- **CSS3**: Grid, Flexbox, Animações
-- **JavaScript ES6+**: Vanilla (sem frameworks)
-- **localStorage**: Persistência local
-
-## 📊 Dados
-
-- **497 municípios** do Rio Grande do Sul
-- **11 características** principais
-- **28 regiões** (COREDEs)
-- **Categorias extras**: Santo(a), Primeira letra, Novo(a)
-
-## 🎯 Características Disponíveis
-
-### Geográficas
-- Fronteira com Argentina
-- Fronteira com Uruguai
-- Fronteira com Santa Catarina
-- Litorâneo
-
-### Regionais
-- COREDE (28 regiões)
-
-### Extras
-- Contém Santo(a)
-- Inicia com A/B/C
-- Inicia com Novo(a)
-
-## ⚙️ Configuração
-
-### Alterar Número de Tentativas
-Editar em `js/game-state.js`:
-```javascript
-this.guessesLeft = 9; // Alterar aqui
-```
-
-### Alterar Pontuação Inicial
-Editar em `js/game-state.js`:
-```javascript
-this.score = 900; // Alterar aqui
-```
-
-### Adicionar Novos Municípios
-Atualizar `data/municipalities.json` com nova estrutura
-
-## 🐛 Troubleshooting
-
-**Jogo não carrega?**
-- Verificar console (F12) para erros
-- Garantir que `data/municipalities.json` existe
-- Limpar cache do navegador
-
-**Dados não aparecem?**
-- Verificar se o servidor está servindo arquivos estáticos
-- Confirmar que CORS está habilitado (se necessário)
-
-**Progresso não salva?**
-- Verificar se localStorage está habilitado
-- Testar em modo privado/incógnito
-
-## 📝 Licença
-
-MIT - Sinta-se livre para usar e modificar!
-
-## 👨‍💻 Desenvolvido por
-
-Manus AI - 28 de maio de 2026
-
----
-
-**Divirta-se descobrindo os municípios gaúchos!** 🎉
+/**
+ * Inicia o jogo quando o DOM estiver pronto
+ */
+document.addEventListener('DOMContentLoaded', () => {
+    initGame();
+    // Limpar histórico antigo após iniciar
+    GamePersistence.cleanOldHistory();
+});

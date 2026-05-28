@@ -1,260 +1,140 @@
-/* ===== RESET E VARIÁVEIS ===== */
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-}
+# 🗺️ Geo TRI - Puzzle Diário de Cidades Gaúchas
 
-:root {
-    --primary-color: #2c3e50;
-    --secondary-color: #3498db;
-    --success-color: #27ae60;
-    --error-color: #e74c3c;
-    --warning-color: #f39c12;
-    --background-color: #ecf0f1;
-    --text-color: #2c3e50;
-    --border-color: #bdc3c7;
-    --shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
-    
-    --spacing-xs: 4px;
-    --spacing-sm: 8px;
-    --spacing-md: 16px;
-    --spacing-lg: 24px;
-    --spacing-xl: 32px;
-    
-    --border-radius: 8px;
-    --transition: all 0.3s ease;
-}
+Um jogo de puzzle interativo que desafia você a identificar municípios do Rio Grande do Sul com base em pistas geográficas e características específicas.
 
-/* ===== BODY E HTML ===== */
-html, body {
-    width: 100%;
-    height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: var(--text-color);
-    line-height: 1.6;
-}
+## 🎮 Como Jogar
 
-/* ===== APP CONTAINER ===== */
-#app {
-    display: flex;
-    flex-direction: column;
-    min-height: 100vh;
-    background: var(--background-color);
-}
+1. **Observe as pistas**: 3 pistas horizontais (topo) e 3 verticais (esquerda)
+2. **Clique em uma célula vazia**: Um modal abrirá mostrando as duas pistas que você precisa satisfazer
+3. **Digite o nome do município**: Que satisfaça AMBAS as pistas simultaneamente
+4. **Acerte para ganhar pontos**: Municípios mais raros valem mais pontos
+5. **Você tem 9 tentativas**: Use-as com sabedoria!
 
-/* ===== HEADER ===== */
-.header {
-    background: linear-gradient(135deg, var(--primary-color) 0%, #34495e 100%);
-    color: white;
-    padding: var(--spacing-lg);
-    box-shadow: var(--shadow-lg);
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
+## 🏆 Sistema de Pontuação
 
-.header-content {
-    max-width: 1200px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: var(--spacing-lg);
-}
+- **Começa com**: 900 pontos
+- **Penalidade**: Baseada na raridade da resposta
+- **Municípios comuns**: Penalizam mais (menos pontos)
+- **Municípios raros**: Penalizam menos (mais pontos)
 
-.logo {
-    font-size: 2rem;
-    font-weight: 700;
-    letter-spacing: 1px;
-}
+## 📱 Características
 
-.header-info {
-    display: flex;
-    gap: var(--spacing-lg);
-}
+- ✅ Responsivo (funciona em desktop, tablet e mobile)
+- ✅ Sem dependências externas (JavaScript puro)
+- ✅ Persistência local (continua de onde parou)
+- ✅ Puzzle diário (mesmo puzzle para todos no mesmo dia)
+- ✅ 497 municípios gaúchos
+- ✅ Múltiplas categorias de características
 
-.info-item {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--spacing-xs);
-}
+## 🚀 Como Usar
 
-.info-item .label {
-    font-size: 0.75rem;
-    opacity: 0.8;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+### Localmente
+```bash
+# Navegar até a pasta
+cd /home/ubuntu/geotri
 
-.info-item .value {
-    font-size: 1.5rem;
-    font-weight: 700;
-}
+# Iniciar servidor (Python 3)
+python3 -m http.server 8080
 
-/* ===== MAIN CONTENT ===== */
-.main-content {
-    flex: 1;
-    padding: var(--spacing-lg);
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
-}
+# Abrir no navegador
+# http://localhost:8080
+```
 
-.board-info {
-    text-align: center;
-    margin-bottom: var(--spacing-lg);
-    font-size: 0.9rem;
-    color: #7f8c8d;
-}
+### Deploy
+Copie a pasta `geotri` para qualquer servidor web estático (GitHub Pages, Netlify, etc.)
 
-.board-info span {
-    margin: 0 var(--spacing-md);
-}
+## 📂 Estrutura do Projeto
 
-/* ===== GAME CONTAINER ===== */
-.game-container {
-    background: white;
-    border-radius: var(--border-radius);
-    padding: var(--spacing-lg);
-    box-shadow: var(--shadow);
-    margin-bottom: var(--spacing-lg);
-}
+```
+geotri/
+├── index.html              # Página principal
+├── css/                    # Estilos
+│   ├── main.css
+│   ├── grid.css
+│   ├── modal.css
+│   └── animations.css
+├── js/                     # Lógica
+│   ├── utils.js
+│   ├── game-state.js
+│   ├── puzzle-generator.js
+│   ├── renderer.js
+│   ├── validator.js
+│   ├── persistence.js
+│   └── main.js
+└── data/
+    └── municipalities.json # Base de dados
+```
 
-/* ===== ACTION BUTTONS ===== */
-.action-buttons {
-    display: flex;
-    gap: var(--spacing-md);
-    justify-content: center;
-    margin-bottom: var(--spacing-lg);
-}
+## 🔧 Tecnologias
 
-.btn {
-    padding: var(--spacing-md) var(--spacing-lg);
-    border: none;
-    border-radius: var(--border-radius);
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-}
+- **HTML5**: Estrutura semântica
+- **CSS3**: Grid, Flexbox, Animações
+- **JavaScript ES6+**: Vanilla (sem frameworks)
+- **localStorage**: Persistência local
 
-.btn-primary {
-    background: var(--secondary-color);
-    color: white;
-}
+## 📊 Dados
 
-.btn-primary:hover:not(:disabled) {
-    background: #2980b9;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
+- **497 municípios** do Rio Grande do Sul
+- **11 características** principais
+- **28 regiões** (COREDEs)
+- **Categorias extras**: Santo(a), Primeira letra, Novo(a)
 
-.btn-secondary {
-    background: var(--border-color);
-    color: var(--text-color);
-}
+## 🎯 Características Disponíveis
 
-.btn-secondary:hover:not(:disabled) {
-    background: #95a5a6;
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
+### Geográficas
+- Fronteira com Argentina
+- Fronteira com Uruguai
+- Fronteira com Santa Catarina
+- Litorâneo
 
-.btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
+### Regionais
+- COREDE (28 regiões)
 
-/* ===== GAME STATUS ===== */
-.game-status {
-    text-align: center;
-    padding: var(--spacing-lg);
-    border-radius: var(--border-radius);
-    margin-bottom: var(--spacing-lg);
-    font-weight: 600;
-    animation: slideIn 0.3s ease;
-}
+### Extras
+- Contém Santo(a)
+- Inicia com A/B/C
+- Inicia com Novo(a)
 
-.game-status.hidden {
-    display: none;
-}
+## ⚙️ Configuração
 
-.game-status.success {
-    background: #d4edda;
-    color: #155724;
-    border: 1px solid #c3e6cb;
-}
+### Alterar Número de Tentativas
+Editar em `js/game-state.js`:
+```javascript
+this.guessesLeft = 9; // Alterar aqui
+```
 
-.game-status.error {
-    background: #f8d7da;
-    color: #721c24;
-    border: 1px solid #f5c6cb;
-}
+### Alterar Pontuação Inicial
+Editar em `js/game-state.js`:
+```javascript
+this.score = 900; // Alterar aqui
+```
 
-.game-status.info {
-    background: #d1ecf1;
-    color: #0c5460;
-    border: 1px solid #bee5eb;
-}
+### Adicionar Novos Municípios
+Atualizar `data/municipalities.json` com nova estrutura
 
-/* ===== RESPONSIVIDADE ===== */
-@media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        gap: var(--spacing-md);
-    }
+## 🐛 Troubleshooting
 
-    .logo {
-        font-size: 1.5rem;
-    }
+**Jogo não carrega?**
+- Verificar console (F12) para erros
+- Garantir que `data/municipalities.json` existe
+- Limpar cache do navegador
 
-    .main-content {
-        padding: var(--spacing-md);
-    }
+**Dados não aparecem?**
+- Verificar se o servidor está servindo arquivos estáticos
+- Confirmar que CORS está habilitado (se necessário)
 
-    .game-container {
-        padding: var(--spacing-md);
-    }
+**Progresso não salva?**
+- Verificar se localStorage está habilitado
+- Testar em modo privado/incógnito
 
-    .action-buttons {
-        flex-direction: column;
-    }
+## 📝 Licença
 
-    .btn {
-        width: 100%;
-        justify-content: center;
-    }
-}
+MIT - Sinta-se livre para usar e modificar!
 
-@media (max-width: 480px) {
-    .header {
-        padding: var(--spacing-md);
-    }
+## 👨‍💻 Desenvolvido por
 
-    .logo {
-        font-size: 1.25rem;
-    }
+Manus AI - 28 de maio de 2026
 
-    .header-info {
-        gap: var(--spacing-md);
-    }
+---
 
-    .info-item .value {
-        font-size: 1.25rem;
-    }
-
-    .main-content {
-        padding: var(--spacing-sm);
-    }
-
-    .game-container {
-        padding: var(--spacing-sm);
-    }
-}
+**Divirta-se descobrindo os municípios gaúchos!** 🎉

@@ -1,204 +1,383 @@
 /**
- * GERADOR DE PUZZLES
+ * UTILITÁRIOS GERAIS
  */
 
-class PuzzleGenerator {
-    constructor(municipalities) {
-        this.municipalities = municipalities;
+// ===== FUNÇÕES DE FORMATAÇÃO =====
+
+/**
+ * Normaliza um nome de município para comparação
+ */
+function normalizeMunicipalityName(name) {
+    return name
+        .toLowerCase()
+        .trim()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+        .replace(/\s+/g, ' '); // Remove espaços extras
+}
+
+/**
+ * Formata a data para exibição
+ */
+function formatDate(date) {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return date.toLocaleDateString('pt-BR', options);
+}
+
+/**
+ * Formata um número com separador de milhares
+ */
+function formatNumber(num) {
+    return num.toLocaleString('pt-BR');
+}
+
+// ===== FUNÇÕES DE DOM =====
+
+/**
+ * Seleciona um elemento do DOM
+ */
+function $(selector) {
+    return document.querySelector(selector);
+}
+
+/**
+ * Seleciona múltiplos elementos do DOM
+ */
+function $$(selector) {
+    return document.querySelectorAll(selector);
+}
+
+/**
+ * Cria um elemento com classes e atributos
+ */
+function createElement(tag, classes = [], attributes = {}) {
+    const el = document.createElement(tag);
+    
+    if (classes.length > 0) {
+        el.classList.add(...(Array.isArray(classes) ? classes : [classes]));
     }
-
-    /**
-     * Gera um puzzle do dia baseado na data
-     */
-    generateDailyPuzzle(date = new Date()) {
-        // Usar a data como seed para gerar o mesmo puzzle todos os dias
-        const seed = this.dateToSeed(date);
-        
-        // Gerar características para o puzzle
-        const characteristics = this.generateCharacteristics(seed);
-        
-        // Gerar respostas baseadas nas características
-        const puzzle = this.generatePuzzleFromCharacteristics(characteristics);
-        
-        return {
-            id: seed,
-            date: date.toISOString().split('T')[0],
-            cluesHorizontal: puzzle.cluesHorizontal,
-            cluesVertical: puzzle.cluesVertical,
-            answers: puzzle.answers,
-            rarities: puzzle.rarities,
-            characteristics: characteristics
-        };
-    }
-
-    /**
-     * Converte uma data em um seed numérico
-     */
-    dateToSeed(date) {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        return parseInt(`${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`);
-    }
-
-    /**
-     * Gera características para o puzzle usando seed
-     */
-    generateCharacteristics(seed) {
-        // Usar seed para gerar números pseudo-aleatórios
-        const rng = this.seededRandom(seed);
-        
-        // Características disponíveis (excluindo COREDE por enquanto)
-        const baseCharacteristics = [
-            'Fronteira com Argentina',
-            'Fronteira com Uruguai',
-            'Fronteira com Santa Catarina',
-            'Litorâneo',
-            'Contém Santo(a)',
-            'Inicia com A',
-            'Inicia com B',
-            'Inicia com C',
-            'Inicia com Novo(a)'
-        ];
-
-        // Adicionar COREDEs
-        const coredes = this.getUniqueCOREDEs();
-        const coredeCharacteristics = coredes.map(c => `COREDE ${c}`);
-        
-        const allCharacteristics = [...baseCharacteristics, ...coredeCharacteristics];
-
-        // Selecionar 3 características horizontais e 3 verticais
-        const shuffled = this.shuffleWithSeed(allCharacteristics, rng);
-        
-        const cluesHorizontal = shuffled.slice(0, 3);
-        const cluesVertical = shuffled.slice(3, 6);
-
-        // Garantir que não há mais de uma categoria extra
-        const extraCategories = ['Contém Santo(a)', 'Inicia com A', 'Inicia com B', 'Inicia com C', 'Inicia com Novo(a)'];
-        const extraInHorizontal = cluesHorizontal.filter(c => extraCategories.includes(c)).length;
-        const extraInVertical = cluesVertical.filter(c => extraCategories.includes(c)).length;
-
-        if (extraInHorizontal + extraInVertical > 1) {
-            // Regenerar se houver mais de uma categoria extra
-            return this.generateCharacteristics(seed + 1);
+    
+    Object.entries(attributes).forEach(([key, value]) => {
+        if (key === 'text') {
+            el.textContent = value;
+        } else if (key === 'html') {
+            el.innerHTML = value;
+        } else {
+            el.setAttribute(key, value);
         }
+    });
+    
+    return el;
+}
 
-        return {
-            cluesHorizontal,
-            cluesVertical
-        };
+/**
+ * Adiciona classe com animação
+ */
+function addClassWithAnimation(el, className, duration = 300) {
+    el.classList.add(className);
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve();
+        }, duration);
+    });
+}
+
+/**
+ * Remove classe com animação
+ */
+function removeClassWithAnimation(el, className, duration = 300) {
+    el.classList.remove(className);
+    return new Promise(resolve => {
+        setTimeout(() => {
+            resolve();
+        }, duration);
+    });
+}
+
+// ===== FUNÇÕES DE ARMAZENAMENTO =====
+
+/**
+ * Salva dados no localStorage
+ */
+function saveToStorage(key, data) {
+    try {
+        localStorage.setItem(key, JSON.stringify(data));
+        return true;
+    } catch (e) {
+        console.error('Erro ao salvar no localStorage:', e);
+        return false;
     }
+}
 
-    /**
-     * Gera um puzzle a partir de características
-     */
-    generatePuzzleFromCharacteristics(characteristics) {
-        const cluesHorizontal = characteristics.cluesHorizontal;
-        const cluesVertical = characteristics.cluesVertical;
-
-        const answers = [];
-        const rarities = [];
-
-        // Para cada célula (3x3), encontrar um município que satisfaz ambas as clues
-        for (let row = 0; row < 3; row++) {
-            answers[row] = [];
-            rarities[row] = [];
-
-            for (let col = 0; col < 3; col++) {
-                const horizontalClue = cluesHorizontal[col];
-                const verticalClue = cluesVertical[row];
-
-                const validMunicipalities = this.findMunicipalitiesByClues(
-                    horizontalClue,
-                    verticalClue
-                );
-
-                if (validMunicipalities.length === 0) {
-                    console.warn(`Nenhum município encontrado para ${horizontalClue} + ${verticalClue}`);
-                    answers[row][col] = 'N/A';
-                    rarities[row][col] = 0;
-                } else {
-                    // Selecionar um município aleatório da lista
-                    const selected = validMunicipalities[
-                        Math.floor(Math.random() * validMunicipalities.length)
-                    ];
-                    answers[row][col] = selected.name;
-                    rarities[row][col] = this.calculateRarity(selected, validMunicipalities);
-                }
-            }
-        }
-
-        return {
-            cluesHorizontal,
-            cluesVertical,
-            answers,
-            rarities
-        };
+/**
+ * Carrega dados do localStorage
+ */
+function loadFromStorage(key, defaultValue = null) {
+    try {
+        const data = localStorage.getItem(key);
+        return data ? JSON.parse(data) : defaultValue;
+    } catch (e) {
+        console.error('Erro ao carregar do localStorage:', e);
+        return defaultValue;
     }
+}
 
-    /**
-     * Encontra municípios que satisfazem ambas as clues
-     */
-    findMunicipalitiesByClues(clueH, clueV) {
-        return this.municipalities.filter(m => {
-            const hasH = this.validateClue(m, clueH);
-            const hasV = this.validateClue(m, clueV);
-            return hasH && hasV;
-        });
+/**
+ * Remove dados do localStorage
+ */
+function removeFromStorage(key) {
+    try {
+        localStorage.removeItem(key);
+        return true;
+    } catch (e) {
+        console.error('Erro ao remover do localStorage:', e);
+        return false;
     }
+}
 
-    /**
-     * Valida se um município satisfaz uma clue
-     */
-    validateClue(municipality, clue) {
-        if (!municipality.characteristics) {
-            return false;
-        }
+// ===== FUNÇÕES DE NOTIFICAÇÃO =====
 
-        return municipality.characteristics.includes(clue);
+/**
+ * Mostra uma notificação temporária
+ */
+function showNotification(message, type = 'info', duration = 3000) {
+    const notification = createElement('div', ['notification', type], {
+        text: message
+    });
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.classList.add('animate-slide-out');
+        setTimeout(() => {
+            notification.remove();
+        }, 300);
+    }, duration);
+}
+
+/**
+ * Mostra um status no jogo
+ */
+function showGameStatus(message, type = 'info') {
+    const statusEl = $('#game-status');
+    statusEl.textContent = message;
+    statusEl.className = `game-status ${type}`;
+    statusEl.classList.remove('hidden');
+    
+    setTimeout(() => {
+        statusEl.classList.add('hidden');
+    }, 3000);
+}
+
+// ===== FUNÇÕES DE VALIDAÇÃO =====
+
+/**
+ * Valida se uma string está vazia
+ */
+function isEmpty(str) {
+    return !str || str.trim().length === 0;
+}
+
+/**
+ * Valida se um valor é um número
+ */
+function isNumber(value) {
+    return !isNaN(parseFloat(value)) && isFinite(value);
+}
+
+/**
+ * Valida se um valor é um objeto
+ */
+function isObject(value) {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Valida se um valor é um array
+ */
+function isArray(value) {
+    return Array.isArray(value);
+}
+
+// ===== FUNÇÕES DE ARRAY =====
+
+/**
+ * Embaralha um array
+ */
+function shuffleArray(array) {
+    const arr = [...array];
+    for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
     }
+    return arr;
+}
 
-    /**
-     * Calcula a raridade de um município (percentual de municípios que satisfazem a mesma combinação)
-     */
-    calculateRarity(municipality, validMunicipalities) {
-        const totalMunicipalities = this.municipalities.length;
-        const percentage = (validMunicipalities.length / totalMunicipalities) * 100;
-        return Math.round(percentage * 10) / 10; // Arredondar para 1 casa decimal
-    }
+/**
+ * Seleciona um elemento aleatório de um array
+ */
+function randomElement(array) {
+    return array[Math.floor(Math.random() * array.length)];
+}
 
-    /**
-     * Obtém COREDEs únicos
-     */
-    getUniqueCOREDEs() {
-        const coredes = new Set();
-        this.municipalities.forEach(m => {
-            if (m.corede) {
-                coredes.add(m.corede);
-            }
-        });
-        return Array.from(coredes);
-    }
+/**
+ * Remove duplicatas de um array
+ */
+function removeDuplicates(array) {
+    return [...new Set(array)];
+}
 
-    /**
-     * Embaralha um array usando seed
-     */
-    shuffleWithSeed(array, rng) {
-        const arr = [...array];
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(rng() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-    }
+/**
+ * Filtra um array por uma propriedade
+ */
+function filterByProperty(array, property, value) {
+    return array.filter(item => item[property] === value);
+}
 
-    /**
-     * Gerador de números pseudo-aleatórios com seed
-     */
-    seededRandom(seed) {
-        return function() {
-            seed = (seed * 9301 + 49297) % 233280;
-            return seed / 233280;
-        };
+// ===== FUNÇÕES DE DELAY =====
+
+/**
+ * Aguarda um tempo específico
+ */
+function delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Executa uma função após um delay
+ */
+function delayedExecution(fn, ms) {
+    return setTimeout(fn, ms);
+}
+
+// ===== FUNÇÕES DE COMPARTILHAMENTO =====
+
+/**
+ * Copia texto para a área de transferência
+ */
+function copyToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    } else {
+        // Fallback para navegadores antigos
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        return Promise.resolve();
     }
+}
+
+/**
+ * Compartilha via Web Share API se disponível
+ */
+function shareContent(data) {
+    if (navigator.share) {
+        return navigator.share(data);
+    } else {
+        // Fallback: copiar para clipboard
+        return copyToClipboard(data.text);
+    }
+}
+
+// ===== FUNÇÕES DE BANDEIRA =====
+
+/**
+ * Obtém a bandeira de um estado (usando emoji de estado dos EUA como referência)
+ * Para municípios, usaremos a bandeira do RS
+ */
+function getMunicipalityFlag() {
+    // Retorna a bandeira do Rio Grande do Sul
+    return '🏳️';
+}
+
+/**
+ * Mapa de emojis para municipios gauchos
+ */
+const MUNICIPALITY_EMOJIS = {
+    'Porto Alegre': '🏛️',
+    'Canoas': '🏭',
+    'Novo Hamburgo': '👟',
+    'Caxias do Sul': '🍇',
+    'Pelotas': '🍑',
+    'Santa Maria': '📚',
+    'Gramado': '🏔️',
+    'Canela': '🌲',
+    'Bento Goncalves': '🍷',
+    'Garibaldi': '🍷',
+    'Sapucaia do Sul': '🏭',
+    'Viam': '🌾',
+    'Alvorada': '🌅',
+    'Gravata': '⛰️',
+    'Cachoerinha': '💧',
+    'Esteio': '🏭',
+    'Taquara': '🌲',
+    'Igrejinha': '⛪',
+    'Torres': '🏖️',
+    'Tramandai': '🏖️',
+    'Capao da Canoa': '🏖️',
+    'Osorio': '🏖️',
+    'Arvorezinha': '🌲',
+    'Jaguarao': '🐆',
+    'Rio Grande': '⚓',
+    'Santana do Livramento': '🐴',
+    'Bage': '🐴',
+    'Uruguaiana': '🐴',
+    'Santo Angelo': '⛪',
+    'Cruz Alta': '🌾',
+    'Passo Fundo': '🌾',
+    'Erechim': '🌾',
+    'Frederico Westphalen': '🌲',
+    'Tres Passos': '🌾',
+    'Soledade': '🌾',
+    'Guapore': '🌾',
+    'Getulio Vargas': '🌾',
+    'Vacaria': '🌲',
+    'Lagoa Vermelha': '🌾',
+    'Bom Jesus': '⛰️',
+    'Cambara do Sul': '⛰️',
+    'Sao Francisco de Paula': '🌲',
+    'Jaquirana': '❄️'
+};
+
+/**
+ * Obtem o emoji de um municipio
+ */
+function getMunicipalityEmoji(municipalityName) {
+    // Procurar no mapa de emojis
+    if (MUNICIPALITY_EMOJIS[municipalityName]) {
+        return MUNICIPALITY_EMOJIS[municipalityName];
+    }
+    
+    // Fallback: retornar emoji generico baseado na primeira letra
+    const firstLetter = municipalityName.charAt(0).toUpperCase();
+    const emojiMap = {
+        'A': '🅰️', 'B': '🅱️', 'C': '©️', 'D': '🆃', 'E': '🅴', 'F': '🅵',
+        'G': '🅶', 'H': '🅷', 'I': 'ℹ️', 'J': '🅹', 'K': '🅺', 'L': '🅻',
+        'M': 'Ⓜ️', 'N': '🅽', 'O': '⭕', 'P': '🅿️', 'Q': '🆀', 'R': '🆁',
+        'S': '🆂', 'T': '🆃', 'U': '🆄', 'V': '🆅', 'W': '🆆', 'X': '❌',
+        'Y': '🆈', 'Z': '🆉'
+    };
+    
+    return emojiMap[firstLetter] || '📍';
+}
+
+// ===== DEBUG =====
+
+/**
+ * Log com timestamp
+ */
+function debugLog(message, data = null) {
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    console.log(`[${timestamp}] ${message}`, data || '');
+}
+
+/**
+ * Log de erro com timestamp
+ */
+function debugError(message, error = null) {
+    const timestamp = new Date().toLocaleTimeString('pt-BR');
+    console.error(`[${timestamp}] ERRO: ${message}`, error || '');
 }

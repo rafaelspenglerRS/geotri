@@ -1,169 +1,149 @@
 /**
- * RENDERIZADOR DO JOGO
+ * GERENCIAMENTO DE ESTADO DO JOGO
  */
 
-class GameRenderer {
-    constructor(puzzle, gameState) {
+class GameState {
+    constructor(puzzle) {
         this.puzzle = puzzle;
-        this.gameState = gameState;
+        this.score = 900;
+        this.guessesLeft = 9;
+        this.filled = new Map(); // key: "row,col", value: {municipality, rarity}
+        this.history = [];
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.isGameWon = false;
     }
 
     /**
-     * Renderiza o tabuleiro completo
+     * Adiciona um palpite ao histórico
      */
-    renderBoard() {
-        this.renderClues();
-        this.renderGrid();
-        this.updateScoreDisplay();
-        this.updateGuessesDisplay();
-        this.updateBoardInfo();
-    }
+    addGuess(row, col, municipality, isCorrect) {
+        const guess = {
+            row,
+            col,
+            municipality,
+            isCorrect,
+            timestamp: Date.now()
+        };
 
-    /**
-     * Renderiza as pistas
-     */
-    renderClues() {
-        // Pistas Horizontais
-        this.puzzle.cluesHorizontal.forEach((clue, index) => {
-            const el = $(`#clue-h-${index}`);
-            if (el) {
-                el.textContent = clue;
-            }
-        });
+        this.history.push(guess);
 
-        // Pistas Verticais
-        this.puzzle.cluesVertical.forEach((clue, index) => {
-            const el = $(`#clue-v-${index}`);
-            if (el) {
-                el.textContent = clue;
-            }
-        });
-    }
-
-    /**
-     * Renderiza o grid 3x3
-     */
-    renderGrid() {
-        const gridEl = $('#grid');
-        gridEl.innerHTML = ''; // Limpar grid anterior
-
-        for (let row = 0; row < 3; row++) {
-            for (let col = 0; col < 3; col++) {
-                const cell = this.createCell(row, col);
-                gridEl.appendChild(cell);
-            }
-        }
-    }
-
-    /**
-     * Cria uma célula do grid
-     */
-    createCell(row, col) {
-        const cell = createElement('div', ['cell'], {
-            id: `cell-${row}-${col}`
-        });
-
-        const isFilled = this.gameState.isCellFilled(row, col);
-
-        if (isFilled) {
-            const municipality = this.gameState.getFilledMunicipality(row, col);
-            this.fillCell(cell, municipality);
+        if (isCorrect) {
+            this.filled.set(`${row},${col}`, {
+                municipality: municipality,
+                rarity: this.puzzle.rarities[row][col] || 50
+            });
+            this.updateScore(municipality, row, col);
+            this.checkGameWon();
         } else {
-            const emptyIcon = createElement('div', ['cell-empty'], {
-                text: '+'
-            });
-            cell.appendChild(emptyIcon);
-            
-            // Adicionar listener de clique
-            cell.addEventListener('click', () => {
-                this.onCellClick(row, col);
-            });
-        }
-
-        return cell;
-    }
-
-    /**
-     * Preenche uma célula com um município
-     */
-    fillCell(cell, municipality) {
-        cell.classList.add('filled');
-        cell.innerHTML = '';
-
-        // Flag
-        const flag = createElement('div', ['cell-flag'], {
-            text: getMunicipalityEmoji(municipality)
-        });
-        cell.appendChild(flag);
-
-        // Nome do município
-        const name = createElement('div', ['cell-name'], {
-            text: municipality
-        });
-        cell.appendChild(name);
-
-        // Remover listener de clique
-        cell.removeEventListener('click', this.onCellClick);
-    }
-
-    /**
-     * Atualiza a exibição de pontuação
-     */
-    updateScoreDisplay() {
-        const scoreEl = $('#score');
-        if (scoreEl) {
-            scoreEl.textContent = Math.round(this.gameState.score);
+            this.guessesLeft--;
+            if (this.guessesLeft <= 0) {
+                this.isGameOver = true;
+            }
         }
     }
 
     /**
-     * Atualiza a exibição de tentativas
+     * Atualiza a pontuação
      */
-    updateGuessesDisplay() {
-        const guessesEl = $('#guesses');
-        if (guessesEl) {
-            const used = this.gameState.getUsedGuesses();
-            guessesEl.textContent = `${this.gameState.guessesLeft}/${used + this.gameState.guessesLeft}`;
+    updateScore(municipality, row, col) {
+        const rarity = this.puzzle.rarities[row][col] || 50;
+        const penalty = (rarity / 100) * 900;
+        this.score = Math.max(0, this.score - penalty);
+    }
+
+    /**
+     * Verifica se o jogo foi vencido
+     */
+    checkGameWon() {
+        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
+        if (this.filled.size === totalCells) {
+            this.isGameWon = true;
         }
     }
 
     /**
-     * Atualiza informações do tabuleiro
+     * Verifica se uma célula já foi preenchida
      */
-    updateBoardInfo() {
-        const boardNumberEl = $('#board-number');
-        const boardDateEl = $('#board-date');
-
-        if (boardNumberEl) {
-            boardNumberEl.textContent = `Puzzle #${this.puzzle.id}`;
-        }
-
-        if (boardDateEl) {
-            const date = new Date(this.puzzle.date);
-            boardDateEl.textContent = formatDate(date);
-        }
+    isCellFilled(row, col) {
+        return this.filled.has(`${row},${col}`);
     }
 
     /**
-     * Atualiza uma célula específica após um acerto
+     * Obtém o município preenchido em uma célula
      */
-    updateCell(row, col, municipality) {
-        const cell = $(`#cell-${row}-${col}`);
-        if (cell) {
-            cell.classList.add('correct-animation');
-            
-            setTimeout(() => {
-                this.fillCell(cell, municipality);
-                this.updateScoreDisplay();
-                this.updateGuessesDisplay();
-            }, 300);
-        }
+    getFilledMunicipality(row, col) {
+        const filled = this.filled.get(`${row},${col}`);
+        return filled ? filled.municipality : null;
     }
 
     /**
-     * Callback para clique em célula
+     * Retorna o estado do jogo como JSON
      */
-    onCellClick(row, col) {
-        // Será implementado no main.js
+    toJSON() {
+        return {
+            score: this.score,
+            guessesLeft: this.guessesLeft,
+            filled: Array.from(this.filled.entries()),
+            history: this.history,
+            isGameOver: this.isGameOver,
+            isGameWon: this.isGameWon,
+            startTime: this.startTime
+        };
+    }
+
+    /**
+     * Carrega o estado do jogo a partir de JSON
+     */
+    fromJSON(data) {
+        this.score = data.score || 900;
+        this.guessesLeft = data.guessesLeft || 9;
+        this.filled = new Map(data.filled || []);
+        this.history = data.history || [];
+        this.isGameOver = data.isGameOver || false;
+        this.isGameWon = data.isGameWon || false;
+        this.startTime = data.startTime || Date.now();
+    }
+
+    /**
+     * Reseta o estado do jogo
+     */
+    reset() {
+        this.score = 900;
+        this.guessesLeft = 9;
+        this.filled.clear();
+        this.history = [];
+        this.startTime = Date.now();
+        this.isGameOver = false;
+        this.isGameWon = false;
+    }
+
+    /**
+     * Retorna o tempo decorrido em segundos
+     */
+    getElapsedTime() {
+        return Math.floor((Date.now() - this.startTime) / 1000);
+    }
+
+    /**
+     * Retorna o número de acertos
+     */
+    getCorrectGuesses() {
+        return this.filled.size;
+    }
+
+    /**
+     * Retorna o número de tentativas usadas
+     */
+    getUsedGuesses() {
+        return 9 - this.guessesLeft;
+    }
+
+    /**
+     * Retorna o percentual de células preenchidas
+     */
+    getCompletionPercentage() {
+        const totalCells = this.puzzle.answers.length * this.puzzle.answers[0].length;
+        return Math.round((this.filled.size / totalCells) * 100);
     }
 }

@@ -1,227 +1,81 @@
-/* ===== CLUES TOP ===== */
-.clues-top {
-    display: grid;
-    grid-template-columns: 80px 1fr 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 16px;
-}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Teste Geo TRI</title>
+    <style>
+        body { font-family: Arial; margin: 20px; }
+        .test { margin: 10px 0; padding: 10px; border: 1px solid #ccc; }
+        .pass { background: #90EE90; }
+        .fail { background: #FFB6C6; }
+    </style>
+</head>
+<body>
+    <h1>Teste do Geo TRI</h1>
+    <div id="results"></div>
 
-.clue-spacer {
-    /* Espaço reservado para alinhar com as pistas verticais */
-}
+    <script src="js/utils.js"></script>
+    <script src="js/game-state.js"></script>
+    <script src="js/puzzle-generator.js"></script>
+    <script src="js/renderer.js"></script>
+    <script src="js/validator.js"></script>
+    <script src="js/persistence.js"></script>
 
-/* ===== GRID WRAPPER ===== */
-.grid-wrapper {
-    display: grid;
-    grid-template-columns: 80px 1fr;
-    gap: 8px;
-}
+    <script>
+        const results = document.getElementById('results');
 
-/* ===== CLUES LEFT ===== */
-.clues-left {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-}
+        function addTest(name, passed, details = '') {
+            const div = document.createElement('div');
+            div.className = `test ${passed ? 'pass' : 'fail'}`;
+            div.innerHTML = `<strong>${name}</strong>: ${passed ? '✓ PASS' : '✗ FAIL'} ${details}`;
+            results.appendChild(div);
+        }
 
-.clues-left .clue {
-    height: calc((100vw - 40px - 16px) / 3);
-    max-height: calc((600px - 40px - 16px) / 3);
-}
+        // Teste 1: Verificar se as classes foram carregadas
+        addTest('PuzzleGenerator', typeof PuzzleGenerator === 'function');
+        addTest('GameState', typeof GameState === 'function');
+        addTest('GameRenderer', typeof GameRenderer === 'function');
+        addTest('AnswerValidator', typeof AnswerValidator === 'function');
 
-/* ===== CLUES STYLING ===== */
-.clue {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    padding: 12px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-    font-size: 0.85rem;
-    font-weight: 600;
-    line-height: 1.3;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    word-break: break-word;
-}
+        // Teste 2: Carregar dados
+        fetch('data/municipalities.json')
+            .then(r => r.json())
+            .then(data => {
+                addTest('Dados carregados', data.municipalities && data.municipalities.length > 0, `${data.municipalities.length} municípios`);
 
-/* ===== GRID 3x3 ===== */
-.grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    gap: 8px;
-    aspect-ratio: 1;
-    width: 100%;
-    max-width: 600px;
-}
+                // Teste 3: Criar gerador
+                try {
+                    const gen = new PuzzleGenerator(data.municipalities);
+                    addTest('Gerador criado', true);
 
-/* ===== CÉLULAS ===== */
-.cell {
-    background: white;
-    border: 2px solid #bdc3c7;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    min-height: 100px;
-    gap: 8px;
-}
+                    // Teste 4: Gerar puzzle
+                    const puzzle = gen.generateDailyPuzzle();
+                    addTest('Puzzle gerado', puzzle && puzzle.id, `ID: ${puzzle.id}`);
 
-.cell:hover:not(.filled) {
-    border-color: #3498db;
-    background: #ecf0f1;
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.2);
-}
+                    // Teste 5: Verificar validMunicipalities
+                    const hasValidMun = puzzle && puzzle.validMunicipalities && puzzle.validMunicipalities[0] && puzzle.validMunicipalities[0][0];
+                    addTest('validMunicipalities', hasValidMun, hasValidMun ? `${puzzle.validMunicipalities[0][0].length} válidos` : '');
 
-.cell.filled {
-    background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    border-color: #27ae60;
-    cursor: default;
-}
+                    // Teste 6: Criar validador
+                    try {
+                        const validator = new AnswerValidator(puzzle);
+                        addTest('Validador criado', true);
 
-.cell.filled:hover {
-    transform: none;
-}
-
-/* ===== CONTEÚDO DA CÉLULA ===== */
-.cell-flag {
-    font-size: 2.5rem;
-    line-height: 1;
-}
-
-.cell-name {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #2c3e50;
-    text-align: center;
-    word-wrap: break-word;
-    max-width: 100%;
-}
-
-.cell-empty {
-    color: #95a5a6;
-    font-size: 1.5rem;
-}
-
-/* ===== ANIMAÇÕES DE CÉLULA ===== */
-.cell.correct-animation {
-    animation: correctAnswer 0.6s ease;
-}
-
-.cell.shake-animation {
-    animation: shake 0.4s ease;
-}
-
-@keyframes correctAnswer {
-    0% {
-        transform: scale(1);
-        background: white;
-    }
-    50% {
-        transform: scale(1.05);
-    }
-    100% {
-        transform: scale(1);
-        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-    }
-}
-
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-5px); }
-    75% { transform: translateX(5px); }
-}
-
-/* ===== RESPONSIVIDADE ===== */
-@media (max-width: 768px) {
-    .clues-top {
-        grid-template-columns: 60px 1fr 1fr 1fr;
-        gap: 6px;
-    }
-
-    .grid-wrapper {
-        gap: 6px;
-    }
-
-    .clues-left {
-        gap: 6px;
-    }
-
-    .clues-left .clue {
-        height: auto;
-        min-height: 60px;
-    }
-
-    .clue {
-        padding: 8px;
-        font-size: 0.75rem;
-    }
-
-    .grid {
-        gap: 6px;
-    }
-
-    .cell {
-        min-height: auto;
-        gap: 4px;
-    }
-
-    .cell-flag {
-        font-size: 1.8rem;
-    }
-
-    .cell-name {
-        font-size: 0.7rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .clues-top {
-        grid-template-columns: 50px 1fr 1fr 1fr;
-        gap: 4px;
-    }
-
-    .grid-wrapper {
-        gap: 4px;
-    }
-
-    .clues-left {
-        gap: 4px;
-    }
-
-    .clues-left .clue {
-        min-height: 50px;
-    }
-
-    .clue {
-        padding: 6px;
-        font-size: 0.65rem;
-    }
-
-    .grid {
-        gap: 4px;
-    }
-
-    .cell {
-        min-height: 70px;
-        gap: 3px;
-    }
-
-    .cell-flag {
-        font-size: 1.5rem;
-    }
-
-    .cell-name {
-        font-size: 0.6rem;
-    }
-}
+                        // Teste 7: Validar resposta
+                        if (hasValidMun && puzzle.validMunicipalities[0][0].length > 0) {
+                            const validMun = puzzle.validMunicipalities[0][0][0];
+                            const result = validator.validateAnswer(0, 0, validMun);
+                            addTest('Validação', result.isValid, `${validMun}: ${result.message}`);
+                        }
+                    } catch (e) {
+                        addTest('Validador', false, e.message);
+                    }
+                } catch (e) {
+                    addTest('Gerador', false, e.message);
+                }
+            })
+            .catch(e => {
+                addTest('Dados', false, e.message);
+            });
+    </script>
+</body>
+</html>

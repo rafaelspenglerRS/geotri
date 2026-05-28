@@ -1,126 +1,190 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geo TRI - Puzzle de Cidades Gaúchas</title>
-    <link rel="stylesheet" href="css/main.css">
-    <link rel="stylesheet" href="css/grid.css">
-    <link rel="stylesheet" href="css/modal.css">
-    <link rel="stylesheet" href="css/animations.css">
-</head>
-<body>
-    <div id="app">
-        <!-- Header -->
-        <header class="header">
-            <div class="header-content">
-                <h1 class="logo">🗺️ Geo TRI</h1>
-                <div class="header-info">
-                    <div class="info-item">
-                        <span class="label">Pontuação</span>
-                        <span class="value" id="score">900</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="label">Tentativas</span>
-                        <span class="value" id="guesses">9/9</span>
-                    </div>
-                </div>
-            </div>
-        </header>
+/**
+ * GERENCIAMENTO DE PERSISTÊNCIA
+ */
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Board Info -->
-            <div class="board-info">
-                <span id="board-number">Puzzle #1</span>
-                <span id="board-date">Hoje</span>
-            </div>
+class GamePersistence {
+    static STORAGE_KEY_PREFIX = 'geotri_';
 
-            <!-- Game Container -->
-            <div class="game-container">
-                <!-- Pistas Horizontais (Top) -->
-                <div class="clues-top">
-                    <div class="clue-spacer"></div>
-                    <div class="clue" id="clue-h-0"></div>
-                    <div class="clue" id="clue-h-1"></div>
-                    <div class="clue" id="clue-h-2"></div>
-                </div>
+    /**
+     * Gera a chave de armazenamento para um puzzle específico
+     */
+    static getStorageKey(puzzleId) {
+        const today = new Date().toISOString().split('T')[0];
+        return `${this.STORAGE_KEY_PREFIX}${puzzleId}_${today}`;
+    }
 
-                <!-- Grid com Pistas Verticais -->
-                <div class="grid-wrapper">
-                    <!-- Pistas Verticais (Left) -->
-                    <div class="clues-left">
-                        <div class="clue" id="clue-v-0"></div>
-                        <div class="clue" id="clue-v-1"></div>
-                        <div class="clue" id="clue-v-2"></div>
-                    </div>
+    /**
+     * Salva o estado do jogo
+     */
+    static saveGame(gameState, puzzleId) {
+        try {
+            const key = this.getStorageKey(puzzleId);
+            const data = gameState.toJSON();
+            saveToStorage(key, data);
+            debugLog('Jogo salvo com sucesso', { key, puzzleId });
+            return true;
+        } catch (e) {
+            debugError('Erro ao salvar jogo', e);
+            return false;
+        }
+    }
 
-                    <!-- Grid 3x3 -->
-                    <div class="grid" id="grid">
-                        <!-- Células serão geradas por JavaScript -->
-                    </div>
-                </div>
-            </div>
+    /**
+     * Carrega o estado do jogo
+     */
+    static loadGame(gameState, puzzleId) {
+        try {
+            const key = this.getStorageKey(puzzleId);
+            const data = loadFromStorage(key);
+            
+            if (data) {
+                gameState.fromJSON(data);
+                debugLog('Jogo carregado com sucesso', { key, puzzleId });
+                return true;
+            }
+            
+            return false;
+        } catch (e) {
+            debugError('Erro ao carregar jogo', e);
+            return false;
+        }
+    }
 
-            <!-- Action Buttons -->
-            <div class="action-buttons">
-                <button id="share-btn" class="btn btn-secondary">
-                    <span>📤 Compartilhar</span>
-                </button>
-                <button id="finish-btn" class="btn btn-primary">
-                    <span>🏁 Revelar Solução</span>
-                </button>
-            </div>
+    /**
+     * Verifica se existe um jogo salvo para hoje
+     */
+    static hasGameToday(puzzleId) {
+        const key = this.getStorageKey(puzzleId);
+        return loadFromStorage(key) !== null;
+    }
 
-            <!-- Game Status -->
-            <div id="game-status" class="game-status hidden"></div>
-        </main>
+    /**
+     * Limpa o jogo salvo
+     */
+    static clearGame(puzzleId) {
+        try {
+            const key = this.getStorageKey(puzzleId);
+            removeFromStorage(key);
+            debugLog('Jogo limpo com sucesso', { key, puzzleId });
+            return true;
+        } catch (e) {
+            debugError('Erro ao limpar jogo', e);
+            return false;
+        }
+    }
 
-        <!-- Modal de Busca -->
-        <div id="search-modal" class="modal hidden">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Encontre um município</h2>
-                    <button class="modal-close" id="modal-close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="clues-display">
-                        <div class="clue-item">
-                            <span class="clue-label">Horizontal:</span>
-                            <span class="clue-text" id="modal-clue-h"></span>
-                        </div>
-                        <div class="clue-item">
-                            <span class="clue-label">Vertical:</span>
-                            <span class="clue-text" id="modal-clue-v"></span>
-                        </div>
-                    </div>
-                    <input 
-                        type="text" 
-                        id="search-input" 
-                        class="search-input" 
-                        placeholder="Digite o nome do município..."
-                        autocomplete="off"
-                    >
-                    <div class="suggestions" id="suggestions"></div>
-                </div>
-                <div class="modal-footer">
-                    <button id="modal-cancel" class="btn btn-secondary">Cancelar</button>
-                    <button id="modal-guess" class="btn btn-primary" disabled>Confirmar</button>
-                </div>
-            </div>
-        </div>
+    /**
+     * Salva o histórico de jogos
+     */
+    static saveGameHistory(history) {
+        try {
+            const key = `${this.STORAGE_KEY_PREFIX}history`;
+            saveToStorage(key, history);
+            debugLog('Histórico salvo com sucesso');
+            return true;
+        } catch (e) {
+            debugError('Erro ao salvar histórico', e);
+            return false;
+        }
+    }
 
-        <!-- Overlay -->
-        <div id="modal-overlay" class="modal-overlay hidden"></div>
-    </div>
+    /**
+     * Carrega o histórico de jogos
+     */
+    static loadGameHistory() {
+        try {
+            const key = `${this.STORAGE_KEY_PREFIX}history`;
+            return loadFromStorage(key, []);
+        } catch (e) {
+            debugError('Erro ao carregar histórico', e);
+            return [];
+        }
+    }
 
-    <!-- Scripts -->
-    <script src="js/utils.js"></script>
-    <script src="js/game-state.js"></script>
-    <script src="js/puzzle-generator.js"></script>
-    <script src="js/renderer.js"></script>
-    <script src="js/validator.js"></script>
-    <script src="js/persistence.js"></script>
-    <script src="js/main.js"></script>
-</body>
-</html>
+    /**
+     * Adiciona um jogo ao histórico
+     */
+    static addToHistory(gameResult) {
+        try {
+            const history = this.loadGameHistory();
+            history.push({
+                ...gameResult,
+                date: new Date().toISOString()
+            });
+            this.saveGameHistory(history);
+            debugLog('Jogo adicionado ao histórico');
+            return true;
+        } catch (e) {
+            debugError('Erro ao adicionar ao histórico', e);
+            return false;
+        }
+    }
+
+    /**
+     * Limpa o histórico antigo (mais de 30 dias)
+     */
+    static cleanOldHistory(daysToKeep = 30) {
+        try {
+            const history = this.loadGameHistory();
+            const cutoffDate = Date.now() - (daysToKeep * 24 * 60 * 60 * 1000);
+            
+            const filtered = history.filter(item => {
+                const itemDate = new Date(item.date).getTime();
+                return itemDate > cutoffDate;
+            });
+
+            this.saveGameHistory(filtered);
+            debugLog(`Histórico limpo. ${history.length - filtered.length} itens removidos`);
+            return true;
+        } catch (e) {
+            debugError('Erro ao limpar histórico', e);
+            return false;
+        }
+    }
+
+    /**
+     * Exporta o estado do jogo como string (para compartilhamento)
+     */
+    static exportGameState(gameState) {
+        try {
+            const data = gameState.toJSON();
+            return btoa(JSON.stringify(data)); // Base64 encode
+        } catch (e) {
+            debugError('Erro ao exportar estado do jogo', e);
+            return null;
+        }
+    }
+
+    /**
+     * Importa o estado do jogo a partir de string
+     */
+    static importGameState(encodedState) {
+        try {
+            const data = JSON.parse(atob(encodedState)); // Base64 decode
+            return data;
+        } catch (e) {
+            debugError('Erro ao importar estado do jogo', e);
+            return null;
+        }
+    }
+
+    /**
+     * Gera um resumo do jogo para compartilhamento
+     */
+    static generateShareText(gameState, puzzle) {
+        const score = Math.round(gameState.score);
+        const completion = gameState.getCompletionPercentage();
+        const elapsedTime = gameState.getElapsedTime();
+        
+        const minutes = Math.floor(elapsedTime / 60);
+        const seconds = elapsedTime % 60;
+        
+        let text = `🗺️ Geo TRI #${puzzle.id}\n`;
+        text += `📊 Pontuação: ${score}\n`;
+        text += `✅ Completado: ${completion}%\n`;
+        text += `⏱️ Tempo: ${minutes}m ${seconds}s\n`;
+        text += `\n🎮 Jogue em: https://geotri.example.com`;
+        
+        return text;
+    }
+}
