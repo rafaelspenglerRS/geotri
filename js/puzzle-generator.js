@@ -1,201 +1,261 @@
 /**
- * GERADOR DE PUZZLES
+ * GERADOR DE PUZZLES - GEO TRI
  */
 
 class PuzzleGenerator {
     constructor(municipalities) {
         this.municipalities = municipalities;
+        this.buildCharacteristicsIndex();
+        this.precomputeValidCombinations();
     }
 
     /**
-     * Gera um puzzle do dia baseado na data
+     * Constrói um índice de características para busca rápida
      */
-    generateDailyPuzzle(date = new Date()) {
-        // Usar a data como seed para gerar o mesmo puzzle todos os dias
-        const seed = this.dateToSeed(date);
+    buildCharacteristicsIndex() {
+        this.characteristicsIndex = {};
         
-        // Gerar características para o puzzle
-        const characteristics = this.generateCharacteristics(seed);
-        
-        // Gerar respostas baseadas nas características
-        const puzzle = this.generatePuzzleFromCharacteristics(characteristics);
-        
-        return {
-            id: seed,
-            date: date.toISOString().split('T')[0],
-            cluesHorizontal: puzzle.cluesHorizontal,
-            cluesVertical: puzzle.cluesVertical,
-            answers: puzzle.answers,
-            rarities: puzzle.rarities,
-            characteristics: characteristics
-        };
+        this.municipalities.forEach(mun => {
+            mun.characteristics.forEach(char => {
+                if (!this.characteristicsIndex[char]) {
+                    this.characteristicsIndex[char] = [];
+                }
+                this.characteristicsIndex[char].push(mun.name);
+            });
+        });
     }
 
     /**
-     * Converte uma data em um seed numérico
+     * Pré-calcula todas as combinações válidas de pistas
+     * Isso garante que temos combinações que funcionam
      */
-    dateToSeed(date) {
-        const year = date.getFullYear();
-        const month = date.getMonth() + 1;
-        const day = date.getDate();
-        return parseInt(`${year}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`);
+    precomputeValidCombinations() {
+        this.validCombinations = []; // Array de {h: clue, v: clue, valid: [municípios]}
+        const allCharacteristics = Object.keys(this.characteristicsIndex);
+        
+        for (let i = 0; i < allCharacteristics.length; i++) {
+            for (let j = 0; j < allCharacteristics.length; j++) {
+                if (i !== j) {
+                    const h = allCharacteristics[i];
+                    const v = allCharacteristics[j];
+                    const valid = this.findValidMunicipalities(h, v);
+                    
+                    if (valid.length > 0) {
+                        this.validCombinations.push({
+                            h: h,
+                            v: v,
+                            valid: valid
+                        });
+                    }
+                }
+            }
+        }
+        
+        debugLog(`Pré-computadas ${this.validCombinations.length} combinações válidas`);
     }
 
     /**
-     * Gera características para o puzzle usando seed
+     * Gera um puzzle diário determinístico
      */
-    generateCharacteristics(seed) {
-        // Usar seed para gerar números pseudo-aleatórios
-        const rng = this.seededRandom(seed);
+    generateDailyPuzzle() {
+        const today = new Date();
+        const seed = this.getSeedFromDate(today);
         
-        // Características disponíveis (excluindo COREDE por enquanto)
-        const baseCharacteristics = [
-            'Fronteira com Argentina',
-            'Fronteira com Uruguai',
-            'Fronteira com Santa Catarina',
-            'Litorâneo',
-            'Contém Santo(a)',
-            'Inicia com A',
-            'Inicia com B',
-            'Inicia com C',
-            'Inicia com Novo(a)'
-        ];
-
-        // Adicionar COREDEs
-        const coredes = this.getUniqueCOREDEs();
-        const coredeCharacteristics = coredes.map(c => `COREDE ${c}`);
-        
-        const allCharacteristics = [...baseCharacteristics, ...coredeCharacteristics];
-
-        // Selecionar 3 características horizontais e 3 verticais
-        const shuffled = this.shuffleWithSeed(allCharacteristics, rng);
-        
-        const cluesHorizontal = shuffled.slice(0, 3);
-        const cluesVertical = shuffled.slice(3, 6);
-
-        // Garantir que não há mais de uma categoria extra
-        const extraCategories = ['Contém Santo(a)', 'Inicia com A', 'Inicia com B', 'Inicia com C', 'Inicia com Novo(a)'];
-        const extraInHorizontal = cluesHorizontal.filter(c => extraCategories.includes(c)).length;
-        const extraInVertical = cluesVertical.filter(c => extraCategories.includes(c)).length;
-
-        if (extraInHorizontal + extraInVertical > 1) {
-            // Regenerar se houver mais de uma categoria extra
-            return this.generateCharacteristics(seed + 1);
+        // Tentar gerar puzzle válido (máximo 50 tentativas)
+        for (let attempt = 0; attempt < 50; attempt++) {
+            const puzzle = this.generatePuzzle(seed + attempt);
+            if (puzzle && this.isValidPuzzle(puzzle)) {
+                debugLog('Puzzle gerado com sucesso', { seed: seed + attempt, attempt });
+                return puzzle;
+            }
         }
 
-        return {
-            cluesHorizontal,
-            cluesVertical
-        };
+        // Se não conseguir, retornar puzzle vazio
+        debugError('Não foi possível gerar um puzzle válido após 50 tentativas');
+        return this.createEmptyPuzzle(seed);
     }
 
     /**
-     * Gera um puzzle a partir de características
+     * Gera um puzzle a partir de um seed
+     * ESTRATÉGIA: Seleciona 9 combinações válidas aleatoriamente
      */
-    generatePuzzleFromCharacteristics(characteristics) {
-        const cluesHorizontal = characteristics.cluesHorizontal;
-        const cluesVertical = characteristics.cluesVertical;
+    generatePuzzle(seed) {
+        if (this.validCombinations.length < 9) {
+            return null; // Não há combinações suficientes
+        }
 
+        const rng = this.createSeededRNG(seed);
+
+        // Selecionar 9 combinações válidas aleatoriamente
+        const selected = [];
+        const used = new Set();
+        const maxAttempts = 1000;
+        let attempts = 0;
+
+        while (selected.length < 9 && attempts < maxAttempts) {
+            const randomIndex = Math.floor(rng() * this.validCombinations.length);
+            const combination = this.validCombinations[randomIndex];
+            const key = `${combination.h}|${combination.v}`;
+
+            if (!used.has(key)) {
+                selected.push(combination);
+                used.add(key);
+            }
+
+            attempts++;
+        }
+
+        if (selected.length < 9) {
+            return null; // Não conseguiu selecionar 9 combinações únicas
+        }
+
+        // Reorganizar em grid 3x3
+        const cluesHorizontal = [];
+        const cluesVertical = [];
         const answers = [];
+        const validMunicipalities = [];
         const rarities = [];
 
-        // Para cada célula (3x3), encontrar um município que satisfaz ambas as clues
         for (let row = 0; row < 3; row++) {
             answers[row] = [];
+            validMunicipalities[row] = [];
             rarities[row] = [];
 
             for (let col = 0; col < 3; col++) {
-                const horizontalClue = cluesHorizontal[col];
-                const verticalClue = cluesVertical[row];
+                const index = row * 3 + col;
+                const combination = selected[index];
 
-                const validMunicipalities = this.findMunicipalitiesByClues(
-                    horizontalClue,
-                    verticalClue
-                );
+                // Armazenar pistas
+                if (col === 0) {
+                    cluesVertical[row] = combination.v;
+                }
+                if (row === 0) {
+                    cluesHorizontal[col] = combination.h;
+                }
 
-                if (validMunicipalities.length === 0) {
-                    console.warn(`Nenhum município encontrado para ${horizontalClue} + ${verticalClue}`);
-                    answers[row][col] = 'N/A';
-                    rarities[row][col] = 0;
-                } else {
-                    // Selecionar um município aleatório da lista
-                    const selected = validMunicipalities[
-                        Math.floor(Math.random() * validMunicipalities.length)
-                    ];
-                    answers[row][col] = selected.name;
-                    rarities[row][col] = this.calculateRarity(selected, validMunicipalities);
+                // Armazenar respostas
+                validMunicipalities[row][col] = combination.valid;
+
+                // Selecionar um como "resposta principal"
+                const selectedIndex = Math.floor(rng() * combination.valid.length);
+                answers[row][col] = combination.valid[selectedIndex];
+
+                // Calcular raridade
+                const percentage = (combination.valid.length / this.municipalities.length) * 100;
+                rarities[row][col] = Math.round(percentage * 10) / 10;
+            }
+        }
+
+        // Verificar restrição de categorias extras
+        const extraCategories = ['Contém Santo(a)', 'Inicia com A', 'Inicia com B', 'Inicia com C', 'Inicia com Novo(a)'];
+        const extraCount = [...cluesHorizontal, ...cluesVertical].filter(c => extraCategories.includes(c)).length;
+        
+        if (extraCount > 1) {
+            return null; // Rejeitar: mais de uma categoria extra
+        }
+
+        return {
+            id: this.generatePuzzleId(),
+            date: new Date().toISOString().split('T')[0],
+            cluesHorizontal,
+            cluesVertical,
+            answers,
+            validMunicipalities,
+            rarities,
+            seed
+        };
+    }
+
+    /**
+     * Encontra municípios que satisfazem AMBAS as pistas
+     */
+    findValidMunicipalities(horizontalClue, verticalClue) {
+        const horizontalMunis = new Set(this.characteristicsIndex[horizontalClue] || []);
+        const verticalMunis = new Set(this.characteristicsIndex[verticalClue] || []);
+
+        // Interseção: municípios que têm AMBAS as características
+        const valid = [];
+        horizontalMunis.forEach(mun => {
+            if (verticalMunis.has(mun)) {
+                valid.push(mun);
+            }
+        });
+
+        return valid;
+    }
+
+    /**
+     * Valida se um puzzle é válido
+     */
+    isValidPuzzle(puzzle) {
+        if (!puzzle) return false;
+        if (!puzzle.validMunicipalities) return false;
+        if (!puzzle.cluesHorizontal || puzzle.cluesHorizontal.length !== 3) return false;
+        if (!puzzle.cluesVertical || puzzle.cluesVertical.length !== 3) return false;
+
+        // Verificar se todas as células têm pelo menos 1 município válido
+        for (let row = 0; row < 3; row++) {
+            for (let col = 0; col < 3; col++) {
+                if (!puzzle.validMunicipalities[row][col] || puzzle.validMunicipalities[row][col].length === 0) {
+                    return false;
                 }
             }
         }
 
+        return true;
+    }
+
+    /**
+     * Cria um puzzle vazio (fallback)
+     */
+    createEmptyPuzzle(seed) {
         return {
-            cluesHorizontal,
-            cluesVertical,
-            answers,
-            rarities
+            id: this.generatePuzzleId(),
+            date: new Date().toISOString().split('T')[0],
+            cluesHorizontal: ['Carregando...', 'Carregando...', 'Carregando...'],
+            cluesVertical: ['Carregando...', 'Carregando...', 'Carregando...'],
+            answers: [
+                ['N/A', 'N/A', 'N/A'],
+                ['N/A', 'N/A', 'N/A'],
+                ['N/A', 'N/A', 'N/A']
+            ],
+            validMunicipalities: [
+                [[], [], []],
+                [[], [], []],
+                [[], [], []]
+            ],
+            rarities: [
+                [0, 0, 0],
+                [0, 0, 0],
+                [0, 0, 0]
+            ],
+            seed
         };
     }
 
     /**
-     * Encontra municípios que satisfazem ambas as clues
+     * Gera ID do puzzle baseado na data
      */
-    findMunicipalitiesByClues(clueH, clueV) {
-        return this.municipalities.filter(m => {
-            const hasH = this.validateClue(m, clueH);
-            const hasV = this.validateClue(m, clueV);
-            return hasH && hasV;
-        });
+    generatePuzzleId() {
+        const today = new Date();
+        return today.getFullYear().toString() + 
+               String(today.getMonth() + 1).padStart(2, '0') + 
+               String(today.getDate()).padStart(2, '0');
     }
 
     /**
-     * Valida se um município satisfaz uma clue
+     * Obtém seed da data
      */
-    validateClue(municipality, clue) {
-        if (!municipality.characteristics) {
-            return false;
-        }
-
-        return municipality.characteristics.includes(clue);
+    getSeedFromDate(date) {
+        return date.getFullYear() * 10000 + 
+               (date.getMonth() + 1) * 100 + 
+               date.getDate();
     }
 
     /**
-     * Calcula a raridade de um município (percentual de municípios que satisfazem a mesma combinação)
+     * Cria um gerador de números aleatórios com seed
      */
-    calculateRarity(municipality, validMunicipalities) {
-        const totalMunicipalities = this.municipalities.length;
-        const percentage = (validMunicipalities.length / totalMunicipalities) * 100;
-        return Math.round(percentage * 10) / 10; // Arredondar para 1 casa decimal
-    }
-
-    /**
-     * Obtém COREDEs únicos
-     */
-    getUniqueCOREDEs() {
-        const coredes = new Set();
-        this.municipalities.forEach(m => {
-            if (m.corede) {
-                coredes.add(m.corede);
-            }
-        });
-        return Array.from(coredes);
-    }
-
-    /**
-     * Embaralha um array usando seed
-     */
-    shuffleWithSeed(array, rng) {
-        const arr = [...array];
-        for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(rng() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-    }
-
-    /**
-     * Gerador de números pseudo-aleatórios com seed
-     */
-    seededRandom(seed) {
+    createSeededRNG(seed) {
         return function() {
             seed = (seed * 9301 + 49297) % 233280;
             return seed / 233280;

@@ -294,12 +294,74 @@ function getMunicipalityFlag() {
 }
 
 /**
- * Obtém o emoji de um município (usando bandeira regional)
+ * Mapa de emojis para municipios gauchos
+ */
+const MUNICIPALITY_EMOJIS = {
+    'Porto Alegre': '🏛️',
+    'Canoas': '🏭',
+    'Novo Hamburgo': '👟',
+    'Caxias do Sul': '🍇',
+    'Pelotas': '🍑',
+    'Santa Maria': '📚',
+    'Gramado': '🏔️',
+    'Canela': '🌲',
+    'Bento Goncalves': '🍷',
+    'Garibaldi': '🍷',
+    'Sapucaia do Sul': '🏭',
+    'Viam': '🌾',
+    'Alvorada': '🌅',
+    'Gravata': '⛰️',
+    'Cachoerinha': '💧',
+    'Esteio': '🏭',
+    'Taquara': '🌲',
+    'Igrejinha': '⛪',
+    'Torres': '🏖️',
+    'Tramandai': '🏖️',
+    'Capao da Canoa': '🏖️',
+    'Osorio': '🏖️',
+    'Arvorezinha': '🌲',
+    'Jaguarao': '🐆',
+    'Rio Grande': '⚓',
+    'Santana do Livramento': '🐴',
+    'Bage': '🐴',
+    'Uruguaiana': '🐴',
+    'Santo Angelo': '⛪',
+    'Cruz Alta': '🌾',
+    'Passo Fundo': '🌾',
+    'Erechim': '🌾',
+    'Frederico Westphalen': '🌲',
+    'Tres Passos': '🌾',
+    'Soledade': '🌾',
+    'Guapore': '🌾',
+    'Getulio Vargas': '🌾',
+    'Vacaria': '🌲',
+    'Lagoa Vermelha': '🌾',
+    'Bom Jesus': '⛰️',
+    'Cambara do Sul': '⛰️',
+    'Sao Francisco de Paula': '🌲',
+    'Jaquirana': '❄️'
+};
+
+/**
+ * Obtem o emoji de um municipio
  */
 function getMunicipalityEmoji(municipalityName) {
-    // Para fins de demonstração, retorna um emoji genérico de localização
-    // Em uma versão futura, poderia mapear municípios específicos
-    return '📍';
+    // Procurar no mapa de emojis
+    if (MUNICIPALITY_EMOJIS[municipalityName]) {
+        return MUNICIPALITY_EMOJIS[municipalityName];
+    }
+    
+    // Fallback: retornar emoji generico baseado na primeira letra
+    const firstLetter = municipalityName.charAt(0).toUpperCase();
+    const emojiMap = {
+        'A': '🅰️', 'B': '🅱️', 'C': '©️', 'D': '🆃', 'E': '🅴', 'F': '🅵',
+        'G': '🅶', 'H': '🅷', 'I': 'ℹ️', 'J': '🅹', 'K': '🅺', 'L': '🅻',
+        'M': 'Ⓜ️', 'N': '🅽', 'O': '⭕', 'P': '🅿️', 'Q': '🆀', 'R': '🆁',
+        'S': '🆂', 'T': '🆃', 'U': '🆄', 'V': '🆅', 'W': '🆆', 'X': '❌',
+        'Y': '🆈', 'Z': '🆉'
+    };
+    
+    return emojiMap[firstLetter] || '📍';
 }
 
 // ===== DEBUG =====

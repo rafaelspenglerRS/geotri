@@ -63,16 +63,27 @@ async function initGame() {
  */
 async function loadMunicipalitiesData() {
     try {
-        const response = await fetch('data/municipalities.json');
+        // Detectar se está em GitHub Pages e ajustar caminho
+        let dataPath = 'data/municipalities.json';
+        if (window.location.hostname === 'rafaelspenglerrs.github.io') {
+            dataPath = '/geotri/data/municipalities.json';
+        }
+        
+        const response = await fetch(dataPath);
         if (!response.ok) {
-            throw new Error(`Erro HTTP: ${response.status}`);
+            throw new Error(`Erro HTTP: ${response.status} ao carregar ${dataPath}`);
         }
         
         const data = await response.json();
         municipalities = data.municipalities || [];
         debugLog(`${municipalities.length} municípios carregados`);
+        
+        if (municipalities.length === 0) {
+            throw new Error('Nenhum município foi carregado do arquivo JSON');
+        }
     } catch (e) {
         debugError('Erro ao carregar dados de municípios', e);
+        showNotification(`Erro ao carregar dados: ${e.message}`, 'error');
         throw e;
     }
 }
@@ -150,6 +161,12 @@ function openModal(row, col) {
         searchInput.focus();
     }
     
+    // Desabilitar botao de confirmação
+    const guessBtn = $('#modal-guess');
+    if (guessBtn) {
+        guessBtn.disabled = true;
+    }
+    
     // Mostrar modal
     if (modal) {
         modal.classList.remove('hidden');
@@ -191,9 +208,15 @@ function closeModal() {
 function handleSearchInput(event) {
     const input = event.target.value;
     const suggestionsEl = $('#suggestions');
+    const guessBtn = $('#modal-guess');
     
     if (!suggestionsEl || currentModalRow === null || currentModalCol === null) {
         return;
+    }
+    
+    // Habilitar/desabilitar botao baseado no input
+    if (guessBtn) {
+        guessBtn.disabled = isEmpty(input);
     }
     
     if (isEmpty(input)) {
@@ -350,7 +373,8 @@ GameRenderer.prototype.onCellClick = function(row, col) {
 /**
  * Inicia o jogo quando o DOM estiver pronto
  */
-document.addEventListener('DOMContentLoaded', initGame);
-
-// Limpar histórico antigo ao iniciar
-GamePersistence.cleanOldHistory();
+document.addEventListener('DOMContentLoaded', () => {
+    initGame();
+    // Limpar histórico antigo após iniciar
+    GamePersistence.cleanOldHistory();
+});
